@@ -1,8 +1,10 @@
-mod shaders {
-    include!(env!("SIMPLEST_SHADER_ENTRYPOINTS"));
-}
-
+mod extension;
+mod logic;
+mod new_ray;
+mod path;
+mod queue;
 mod render;
+mod texture;
 
 use std::sync::Arc;
 
@@ -15,14 +17,23 @@ use winit::{
     window::Window,
 };
 
+use crate::extension::Sphere;
+
 pub struct State {
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     is_surface_configured: bool,
+    paths: path::Paths,
+    new_ray_queue: queue::Queue,
+    extension_queue: queue::Queue,
+    logic_phase: logic::LogicPhase,
     render_phase: render::RenderPhase,
+    new_ray_phase: new_ray::NewRayPhase,
+    extension_phase: extension::ExtensionPhase,
     window: Arc<Window>,
+    dims: (u32, u32),
 }
 
 impl State {
@@ -75,7 +86,25 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
-        let render_phase = render::RenderPhase::new(&device, &config);
+        let dims = (512, 512);
+
+        let paths = path::Paths::new(&device, dims);
+        let new_ray_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("NewRayPhase"));
+        let extension_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("ExtensionPhase"));
+
+        let render_phase = render::RenderPhase::new(&device, &config, dims);
+        let logic_phase = logic::LogicPhase::new(&device, &paths, &new_ray_queue, &[], dims);
+        let new_ray_phase =
+            new_ray::NewRayPhase::new(&device, &paths, &new_ray_queue, &extension_queue, dims);
+        let extension_phase = extension::ExtensionPhase::new(
+            &device,
+            &paths,
+            &extension_queue,
+            &[Sphere {
+                position: [0.0, 0.0, 4.0],
+                radius: 1.0,
+            }],
+        );
 
         Ok(Self {
             surface,
@@ -84,7 +113,14 @@ impl State {
             config,
             is_surface_configured: false,
             window,
+            logic_phase,
             render_phase,
+            new_ray_phase,
+            extension_phase,
+            paths,
+            new_ray_queue,
+            extension_queue,
+            dims,
         })
     }
 
@@ -121,9 +157,33 @@ impl State {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let renderer_commands = self.render_phase.render(&self.device, &view);
+        let logic_commands = self.logic_phase.render(
+            &self.device,
+            &self.paths,
+            &self.new_ray_queue,
+            &[],
+            self.dims,
+        );
+        let new_ray_commands = self.new_ray_phase.render(
+            &self.device,
+            &self.paths,
+            &self.new_ray_queue,
+            &self.extension_queue,
+        );
+        let extension_commands =
+            self.extension_phase
+                .render(&self.device, &self.paths, &self.extension_queue);
 
-        self.queue.submit([renderer_commands]);
+        let renderer_commands =
+            self.render_phase
+                .render(&self.device, &self.logic_phase.output(), &view);
+
+        self.queue.submit([
+            logic_commands,
+            new_ray_commands,
+            extension_commands,
+            renderer_commands,
+        ]);
 
         output.present();
 
@@ -194,6 +254,8 @@ impl ApplicationHandler<State> for App {
 }
 
 pub fn run() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
+
     let event_loop = EventLoop::with_user_event().build()?;
     let mut app = App::new();
     event_loop.run_app(&mut app)?;

@@ -1,3 +1,3 @@
-fn main() {
-    runner::run();
+fn main() -> anyhow::Result<()> {
+    runner::run()
 }

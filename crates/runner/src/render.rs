@@ -1,4 +1,7 @@
-use wgpu::util::DeviceExt;
+use wesl::include_wesl;
+use wgpu::{CommandBuffer, util::DeviceExt};
+
+use crate::texture;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -54,13 +57,22 @@ pub struct RenderPhase {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
+    diffuse_bind_group: wgpu::BindGroup,
+    diffuse_texture: texture::Texture,
+    texture_size: (u32, u32),
 }
 
 impl RenderPhase {
-    pub fn new(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        config: &wgpu::SurfaceConfiguration,
+        texture_size: (u32, u32),
+    ) -> Self {
         // Load the shaders
-        let render_shader =
-            device.create_shader_module(wgpu::include_spirv!(env!("SIMPLEST_SHADER_PATH")).into());
+        let render_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("RenderShader"),
+            source: wgpu::ShaderSource::Wgsl(include_wesl!("shader").into()),
+        });
 
         // Create the index buffer
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -70,11 +82,52 @@ impl RenderPhase {
         });
         let num_indices = INDICES.len() as u32;
 
+        // Creating the texture
+        let diffuse_texture = texture::Texture::new(&device, texture_size).unwrap();
+
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+                label: Some("texture_bind_group_layout"),
+            });
+
+        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
+                },
+            ],
+            label: Some("diffuse_bind_group"),
+        });
+
         // Create the render pipeline here:
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[&texture_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -83,7 +136,7 @@ impl RenderPhase {
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &render_shader,
-                entry_point: Some(crate::shaders::main_vs),
+                entry_point: Some("vs_main"),
                 buffers: &[Vertex::desc()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
@@ -104,7 +157,7 @@ impl RenderPhase {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &render_shader,
-                entry_point: Some(crate::shaders::main_fs),
+                entry_point: Some("fs_main"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
@@ -128,13 +181,43 @@ impl RenderPhase {
             vertex_buffer,
             index_buffer,
             num_indices,
+            diffuse_bind_group,
+            diffuse_texture,
+            texture_size,
         }
     }
 
-    pub fn render(&self, device: &wgpu::Device, out: &wgpu::TextureView) -> wgpu::CommandBuffer {
+    pub fn render(
+        &self,
+        device: &wgpu::Device,
+        source: &wgpu::Buffer,
+        out: &wgpu::TextureView,
+    ) -> CommandBuffer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
+
+        encoder.copy_buffer_to_texture(
+            wgpu::TexelCopyBufferInfoBase {
+                buffer: source,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * self.texture_size.0),
+                    rows_per_image: Some(self.texture_size.1),
+                },
+            },
+            wgpu::TexelCopyTextureInfoBase {
+                texture: &self.diffuse_texture.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width: self.texture_size.0,
+                height: self.texture_size.1,
+                depth_or_array_layers: 1,
+            },
+        );
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
@@ -158,6 +241,7 @@ impl RenderPhase {
         });
 
         render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         render_pass.draw_indexed(0..self.num_indices, 0, 0..1);

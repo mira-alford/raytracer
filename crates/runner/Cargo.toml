@@ -13,11 +13,18 @@ bytemuck.workspace = true
 clap = { workspace = true, features = ["derive"] }
 env_logger = { workspace = true }
 futures = { workspace = true, features = ["std"] }
+image = { workspace = true }
 shared = { workspace = true }
 strum = { workspace = true, features = ["std"] }
 tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+wesl = { workspace = true }
 wgpu = { workspace = true, features = ["spirv", "vulkan-portability"] }
 winit = { workspace = true }
 
 [lints]
 workspace = true
+
+[build-dependencies]
+wesl.workspace = true

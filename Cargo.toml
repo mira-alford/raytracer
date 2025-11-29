@@ -22,3 +22,7 @@ shared = { path = "crates/shared" }
 tokio = "1.48.0"
 log = "0.4.28"
 anyhow = "1.0.100"
+tracing = "0.1.43"
+tracing-subscriber = "0.3.22"
+wesl = "0.2.0"
+image = "0.25.9"
