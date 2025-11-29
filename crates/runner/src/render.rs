@@ -1,5 +1,5 @@
 use wesl::include_wesl;
-use wgpu::{CommandBuffer, util::DeviceExt};
+use wgpu::{CommandBuffer, include_spirv, util::DeviceExt};
 
 use crate::texture;
 
@@ -69,10 +69,8 @@ impl RenderPhase {
         texture_size: (u32, u32),
     ) -> Self {
         // Load the shaders
-        let render_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("RenderShader"),
-            source: wgpu::ShaderSource::Wgsl(include_wesl!("shader").into()),
-        });
+        let render_shader =
+            device.create_shader_module(wgpu::include_spirv!(env!("SHADERS_PATH")).into());
 
         // Create the index buffer
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -136,7 +134,7 @@ impl RenderPhase {
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &render_shader,
-                entry_point: Some("vs_main"),
+                entry_point: Some(crate::shaders::render::vs_main),
                 buffers: &[Vertex::desc()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
@@ -157,7 +155,7 @@ impl RenderPhase {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &render_shader,
-                entry_point: Some("fs_main"),
+                entry_point: Some(crate::shaders::render::fs_main),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,

@@ -2667,6 +2667,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "shaders"
+version = "0.1.0"
+dependencies = [
+ "shared",
+ "spirv-std",
+]
+
+[[package]]
 name = "sharded-slab"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2711,14 +2719,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95890f873bec569a0362c235787f3aca6e1e887302ba4840839bcc6459c42da6"
 dependencies = [
  "quote",
-]
-
-[[package]]
-name = "simplest-shader"
-version = "0.1.0"
-dependencies = [
- "shared",
- "spirv-std",
 ]
 
 [[package]]

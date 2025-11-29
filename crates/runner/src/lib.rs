@@ -6,6 +6,10 @@ mod queue;
 mod render;
 mod texture;
 
+mod shaders {
+    include!(env!("SHADERS_ENTRYPOINTS"));
+}
+
 use std::sync::Arc;
 
 use winit::{

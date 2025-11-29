@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/runner", "crates/shared", "crates/simplest-shader"]
+members = ["crates/runner", "crates/shared", "crates/shaders"]
 exclude = ["builder"]
 
 [workspace.lints.rust]

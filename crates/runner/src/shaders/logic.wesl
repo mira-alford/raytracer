@@ -22,7 +22,7 @@ fn cs_main(
     let path = &paths[global_id.x + global_id.y * 512];
     if path.generated == 0 {
         path.generated = 1;
-        queue_push(&new_path, global_id.x + global_id.y * 512);
+        // queue_push(&new_path, global_id.x + global_id.y * 512);
         // atomicStore(&output[global_id.x + global_id.y * 512], i);
     } else if path.terminated == 1 {
         // On termination, add the radiance to the buffer for now:
