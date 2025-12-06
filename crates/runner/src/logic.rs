@@ -1,10 +1,11 @@
 use tracing::info;
 use wesl::include_wesl;
-use wgpu::util::DeviceExt;
+use wgpu::{include_spirv, util::DeviceExt};
 
 use crate::{path, queue};
 
 pub struct LogicPhase {
+    start_pipeline: wgpu::ComputePipeline,
     pipeline: wgpu::ComputePipeline,
     output_buffer: wgpu::Buffer,
     output_bind_group: wgpu::BindGroup,
@@ -18,10 +19,8 @@ impl LogicPhase {
         material_queues: &[queue::Queue],
         dims: (u32, u32),
     ) -> Self {
-        let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("LogicPhase"),
-            source: wgpu::ShaderSource::Wgsl(include_wesl!("logic").into()),
-        });
+        let compute_shader =
+            device.create_shader_module(include_spirv!(concat!(env!("OUT_DIR"), "/logic.spv")));
 
         // Pixel output buffer (atomically written to in shader?):
         let output_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -75,16 +74,26 @@ impl LogicPhase {
             push_constant_ranges: &[],
         });
 
+        let start_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("LogicPhase Start Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &compute_shader,
+            entry_point: Some("logicStart"),
+            compilation_options: Default::default(),
+            cache: Default::default(),
+        });
+
         let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("LogicPhase Pipeline"),
             layout: Some(&pipeline_layout),
             module: &compute_shader,
-            entry_point: Some("cs_main"),
+            entry_point: Some("logicMain"),
             compilation_options: Default::default(),
             cache: Default::default(),
         });
 
         Self {
+            start_pipeline,
             pipeline,
             output_buffer,
             output_bind_group,
@@ -104,6 +113,18 @@ impl LogicPhase {
         });
 
         let mut compute_pass = encoder.begin_compute_pass(&Default::default());
+
+        // Start Pipeline to reset the queues:
+        compute_pass.set_pipeline(&self.start_pipeline);
+        compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
+        compute_pass.set_bind_group(1, &new_ray_queue.bind_group, &[]);
+        compute_pass.set_bind_group(2, &self.output_bind_group, &[]);
+        for (i, m) in material_queues.iter().enumerate() {
+            compute_pass.set_bind_group(i as u32 + 3, &m.bind_group, &[]);
+        }
+        compute_pass.dispatch_workgroups(1, 1, 1);
+
+        // Main Pipeilne:
         compute_pass.set_pipeline(&self.pipeline);
         compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
         compute_pass.set_bind_group(1, &new_ray_queue.bind_group, &[]);

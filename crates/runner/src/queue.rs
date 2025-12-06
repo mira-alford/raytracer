@@ -14,15 +14,14 @@ impl Queue {
         let counter_uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label,
             usage: wgpu::BufferUsages::STORAGE,
-            contents: bytemuck::bytes_of(&0u32),
+            contents: bytemuck::bytes_of(&[0u32, 0u32]),
         });
 
         // Create the queue buffer, fits size u32s
         let queue_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label,
             usage: wgpu::BufferUsages::STORAGE,
-            // +2 for the two atomic u32s
-            size: ((size + 4) as u64 * std::mem::size_of::<u32>() as u64),
+            size: (size as u64 * std::mem::size_of::<u32>() as u64),
             mapped_at_creation: false,
         });
 
@@ -30,19 +29,19 @@ impl Queue {
             label,
             entries: &[
                 // Atomic counter for queue:
-                // wgpu::BindGroupLayoutEntry {
-                //     binding: 0,
-                //     visibility: wgpu::ShaderStages::COMPUTE,
-                //     ty: wgpu::BindingType::Buffer {
-                //         ty: wgpu::BufferBindingType::Storage { read_only: false },
-                //         has_dynamic_offset: false,
-                //         min_binding_size: None,
-                //     },
-                //     count: None,
-                // },
-                // The queue itself:
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // The queue itself:
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -58,12 +57,12 @@ impl Queue {
             label,
             layout: &bind_group_layout,
             entries: &[
-                // wgpu::BindGroupEntry {
-                //     binding: 0,
-                //     resource: counter_uniform.as_entire_binding(),
-                // },
                 wgpu::BindGroupEntry {
                     binding: 0,
+                    resource: counter_uniform.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
                     resource: queue_buffer.as_entire_binding(),
                 },
             ],

@@ -95,14 +95,15 @@ impl State {
         let render_phase = render::RenderPhase::new(&device, &config, dims);
         let logic_phase = logic::LogicPhase::new(&device, &paths, &new_ray_queue, &[], dims);
         let new_ray_phase =
-            new_ray::NewRayPhase::new(&device, &paths, &new_ray_queue, &extension_queue, dims);
+            new_ray::NewRayPhase::new(&device, &paths, &new_ray_queue, &extension_queue);
         let extension_phase = extension::ExtensionPhase::new(
             &device,
             &paths,
             &extension_queue,
             &[Sphere {
-                position: [0.0, 0.0, 4.0],
+                position: [0.0, 0.0, 3.0],
                 radius: 1.0,
+                ..Default::default()
             }],
         );
 

@@ -1,5 +1,5 @@
 use wesl::include_wesl;
-use wgpu::util::DeviceExt;
+use wgpu::{include_spirv, util::DeviceExt};
 
 use crate::{path, queue};
 
@@ -12,28 +12,19 @@ pub struct Camera {
     pub _pad1: u32,
     pub up: [f32; 3],
     pub _pad2: u32,
-    pub right: [f32; 3],
-    pub _pad3: u32,
+    pub dims: [f32; 2],
     pub focal_length: f32,
-    pub logical_half_width: u32,
-    pub logical_half_height: u32,
-    pub world_half_width: f32,
-    pub world_half_height: f32,
-    pub _pad4: [u32; 3],
+    pub _pad3: [u32; 2],
 }
 
 impl Camera {
-    fn new(dims: (u32, u32)) -> Self {
+    fn new() -> Self {
         Self {
-            position: Default::default(),
-            forward: Default::default(),
-            up: Default::default(),
-            right: Default::default(),
+            position: [0.0, 0.0, 0.0],
+            forward: [0.0, 0.0, 1.0],
+            up: [0.0, 1.0, 0.0],
+            dims: [1.0, 1.0],
             focal_length: 1.0,
-            logical_half_width: dims.0 / 2,
-            logical_half_height: dims.1 / 2,
-            world_half_width: 1.0,
-            world_half_height: 1.0,
             ..Default::default()
         }
     }
@@ -52,17 +43,18 @@ impl NewRayPhase {
         path_buffer: &path::Paths,
         new_ray_queue: &queue::Queue,
         extension_queue: &queue::Queue,
-        dims: (u32, u32),
     ) -> Self {
-        let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("NewRayPhase"),
-            source: wgpu::ShaderSource::Wgsl(include_wesl!("new_ray").into()),
-        });
+        let compute_shader =
+            device.create_shader_module(include_spirv!(concat!(env!("OUT_DIR"), "/new_ray.spv")));
+        // let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        //     label: Some("NewRayPhase"),
+        //     source: wgpu::ShaderSource::Wgsl(include_wesl!("new_ray").into()),
+        // });
 
         // Camera initialization:
         let camera_uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("ExtensionPhase Camera Uniform"),
-            contents: bytemuck::bytes_of(&Camera::new(dims)),
+            contents: bytemuck::bytes_of(&Camera::new()),
             usage: wgpu::BufferUsages::UNIFORM,
         });
 
@@ -105,7 +97,7 @@ impl NewRayPhase {
             label: Some("NewRayPhase Pipeline"),
             layout: Some(&pipeline_layout),
             module: &compute_shader,
-            entry_point: Some("cs_main"),
+            entry_point: Some("main"),
             compilation_options: Default::default(),
             cache: Default::default(),
         });

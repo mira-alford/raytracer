@@ -1,10 +1,10 @@
 use wesl::include_wesl;
-use wgpu::util::DeviceExt;
+use wgpu::{include_spirv, util::DeviceExt};
 
 use crate::{path, queue};
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
 pub struct Sphere {
     pub position: [f32; 3],
     pub radius: f32,
@@ -24,10 +24,8 @@ impl ExtensionPhase {
         extension_queue: &queue::Queue,
         primitives: &[Sphere],
     ) -> Self {
-        let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("ExtensionPhase"),
-            source: wgpu::ShaderSource::Wgsl(include_wesl!("extension").into()),
-        });
+        let compute_shader =
+            device.create_shader_module(include_spirv!(concat!(env!("OUT_DIR"), "/extension.spv")));
 
         // Primitives Initialization:
         let primitives_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -74,7 +72,7 @@ impl ExtensionPhase {
             label: Some("ExtensionPhase Pipeline"),
             layout: Some(&pipeline_layout),
             module: &compute_shader,
-            entry_point: Some("cs_main"),
+            entry_point: Some("main"),
             compilation_options: Default::default(),
             cache: Default::default(),
         });
