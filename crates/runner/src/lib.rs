@@ -1,3 +1,4 @@
+mod camera;
 mod extension;
 mod logic;
 mod new_ray;
@@ -32,6 +33,7 @@ pub struct State {
     render_phase: render::RenderPhase,
     new_ray_phase: new_ray::NewRayPhase,
     extension_phase: extension::ExtensionPhase,
+    camera: camera::Camera,
     window: Arc<Window>,
     dims: (u32, u32),
 }
@@ -91,11 +93,12 @@ impl State {
         let paths = path::Paths::new(&device, dims);
         let new_ray_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("NewRayPhase"));
         let extension_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("ExtensionPhase"));
+        let camera = camera::Camera::new(&device, Some("MainCamera"));
 
         let render_phase = render::RenderPhase::new(&device, &config, dims);
         let logic_phase = logic::LogicPhase::new(&device, &paths, &new_ray_queue, &[], dims);
         let new_ray_phase =
-            new_ray::NewRayPhase::new(&device, &paths, &new_ray_queue, &extension_queue);
+            new_ray::NewRayPhase::new(&device, &paths, &new_ray_queue, &extension_queue, &camera);
         let extension_phase = extension::ExtensionPhase::new(
             &device,
             &paths,
@@ -121,6 +124,7 @@ impl State {
             paths,
             new_ray_queue,
             extension_queue,
+            camera,
             dims,
         })
     }
@@ -170,6 +174,7 @@ impl State {
             &self.paths,
             &self.new_ray_queue,
             &self.extension_queue,
+            &self.camera,
         );
         let extension_commands =
             self.extension_phase
