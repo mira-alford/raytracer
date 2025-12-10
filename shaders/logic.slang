@@ -29,8 +29,9 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
   if (threadId.x > 512 || threadId.y > 512) {
     return;
   }
+  uint32_t idx = threadId.x + threadId.y * 512;
 
-  let path = &paths[threadId.x + threadId.y * 512];
+  let path = &paths[idx];
 
   if (path.generated == 0) {
     // Path has never been generated
@@ -42,12 +43,15 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     path.rad = float3(0.0);
 
     // Push to the queue:
-    queuePush(qh_new_ray, qd_new_ray, threadId.x + threadId.y * 512);
+    queuePush(qh_new_ray, qd_new_ray, idx);
     path.generated = 1;
   } else if (path.terminated == 1) {
     // Path is terminated, add radiance to the buffer
-    // output[threadId.x + threadId.y * 512] = pack_rgb(oldWrite);
-    output[threadId.x + threadId.y * 512] = pack_rgb(path.rad.xyz);
+    // output[idx] = pack_rgb(path.rad.xyz);
+    path.samples += 1;
+    path.samples = min(path.samples,20);
+    path.sampled_rad = path.sampled_rad * (float(path.samples-1) / float(path.samples)) + path.rad  / float(path.samples);
+    output[idx] = pack_rgb(path.sampled_rad.xyz);
     path.generated = 0;
   } else {
     // Path is not yet terminated this is where we would give it to the material it hit

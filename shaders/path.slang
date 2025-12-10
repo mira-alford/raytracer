@@ -4,15 +4,19 @@ import ray;
 import hit;
 
 public struct Path {
-  public Ray ray;
-  public float3 rad;
-  public float3 throughput;
-  public float2 screen_pos;
-  public uint32_t terminated;
-  public uint32_t generated;
-  public uint32_t bounces;
+  public Ray ray; // 0..=32
+  public float3 rad; // 33..=48
+  public float3 throughput; // 49..=64
+  public float2 screen_pos; // 
+  public uint terminated;
+  public uint generated;
+  public uint bounces;
   // 0 is meaningless
   // 1 is a lambertian
-  public uint32_t mat;
+  public uint mat;
   public Hit hit;
+  public float3 sampled_rad;
+  public uint samples;
+  public float3 sampled_pos;
+  public float3 random_state;
 };

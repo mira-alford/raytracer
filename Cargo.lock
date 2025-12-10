@@ -2574,6 +2574,7 @@ dependencies = [
  "image",
  "phf",
  "phf_codegen",
+ "rand",
  "shared",
  "strum",
  "tokio",
