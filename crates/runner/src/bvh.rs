@@ -228,8 +228,8 @@ impl From<BVHNode> for BVHNodeGPU {
             } => BVHNodeGPU {
                 lower_bound: [bounds.lb.x, bounds.lb.y, bounds.lb.z, 0.0],
                 upper_bound: [bounds.ub.x, bounds.ub.y, bounds.ub.z, 0.0],
-                left: left as u32,
-                right: right as u32,
+                left: left as u32,   // FIXME these should be offset for more bvhs
+                right: right as u32, // But 0 should not be offset, its just null
                 is_leaf: 0,
                 start: 0,
                 end: 0,

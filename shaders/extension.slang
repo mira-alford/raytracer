@@ -49,45 +49,55 @@ struct Sphere {
   }
 }
 
-  void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h) {
-    let p0 = tri_positions[face.x];
-    let p1 = tri_positions[face.y];
-    let p2 = tri_positions[face.z];
+void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h) {
+  let p0 = tri_positions[face.x];
+  let p1 = tri_positions[face.y];
+  let p2 = tri_positions[face.z];
 
-    let n0 = tri_normals[face.x];
-    let n1 = tri_normals[face.y];
-    let n2 = tri_normals[face.z];
+  let n0 = tri_normals[face.x];
+  let n1 = tri_normals[face.y];
+  let n2 = tri_normals[face.z];
+
+  uv = float2(0.0);
+  t = -1;
+  h = Hit();
   
-    uv = float2(0.0);
-    t = -1;
-    h = Hit();
-    
-    let e1 = p1 - p0;
-    let e2 = p2 - p0;
-    let q = cross(ray.dir, e2);
-    let alpha = dot(e1, q);
-    if (alpha > -(10e-5) && alpha < 10e-5) {
-      return;
-    }
-    let f = 1.0 / alpha;
-    let s = ray.pos - p0;
-    let u = f * dot(s, q);
-    if (u < 0.0) {
-      return;
-    }
-    let r = cross(s, e1);
-    let v = f * dot(ray.dir, r);
-    if (v < 0.0 || u + v > 1.0) {
-      return;
-    }
-    t = f * dot(e2, r);
-
-    // h.norm = normalize(cross(e1, e2));
-    h.norm = n0 * (1.0 - u - v) + n1 * u + n2 * v;
-    h.pos = ray.pos + t * ray.dir;
+  let e1 = p1 - p0;
+  let e2 = p2 - p0;
+  let q = cross(ray.dir, e2);
+  let alpha = dot(e1, q);
+  if (alpha > -(10e-5) && alpha < 10e-5) {
     return;
   }
+  let f = 1.0 / alpha;
+  let s = ray.pos - p0;
+  let u = f * dot(s, q);
+  if (u < 0.0) {
+    return;
+  }
+  let r = cross(s, e1);
+  let v = f * dot(ray.dir, r);
+  if (v < 0.0 || u + v > 1.0) {
+    return;
+  }
+  t = f * dot(e2, r);
 
+  // h.norm = normalize(cross(e1, e2));
+  h.norm = n0 * (1.0 - u - v) + n1 * u + n2 * v;
+  h.pos = ray.pos + t * ray.dir;
+  return;
+}
+
+void rayBVHIntersect(Ray ray, uint bvh_node, out float2 uv, out float t, out Hit h) {
+  // It appears i need a ROPED bvh traversal
+  // Definitely not getting this done tonight then.
+  // Idea:
+  // Each node points to the next node in a full dfs traversal
+  // after all of its children are already done.
+  // AKA each node has the index of its right sibling,
+  // if that right sibling doesnt exist, keep going up until something has one
+  // 0 is nullptr, NOT root node :)
+}
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
 [[vk::binding(3,0)]] RWStructuredBuffer<HitData> hits;
