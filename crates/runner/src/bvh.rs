@@ -19,30 +19,19 @@ impl AABB {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-enum BVHNode {
-    Internal {
-        // Bounds of this BVH:
-        bounds: AABB,
-        // Children BVHNodes:
-        left: usize,
-        right: usize,
-    },
-    Leaf {
-        // Bounds of this BVH:
-        bounds: AABB,
-        // Contained primitives
-        start: usize,
-        end: usize, // non inclusive
-    },
+#[derive(Clone, Copy, Debug, Default)]
+pub struct BVHNode {
+    bounds: AABB,
+    left: usize,
+    right: usize,
+    is_leaf: bool,
+    start: usize,
+    end: usize,
 }
 
 impl BVHNode {
     fn bounds(&self) -> AABB {
-        match self {
-            BVHNode::Internal { bounds, .. } => *bounds,
-            BVHNode::Leaf { bounds, .. } => *bounds,
-        }
+        self.bounds
     }
 }
 
@@ -71,100 +60,92 @@ impl BVH {
 
     fn compute_bounds(&mut self, node_idx: usize) {
         let mut node = self.nodes[node_idx];
-        match &mut node {
-            BVHNode::Internal {
-                bounds,
-                left,
-                right,
-            } => {
-                let l = &self.nodes[*left];
-                let r = &self.nodes[*right];
-                *bounds = l.bounds().union(&r.bounds());
+        if !node.is_leaf {
+            let l = &self.nodes[node.left];
+            let r = &self.nodes[node.right];
+            node.bounds = l.bounds().union(&r.bounds());
+        } else {
+            let mut new_bounds = self.face_bounds(node.start);
+            for i in node.start + 1..node.end {
+                new_bounds = new_bounds.union(&self.face_bounds(i))
             }
-            BVHNode::Leaf { bounds, start, end } => {
-                let mut new_bounds = self.face_bounds(*start);
-                for i in *start + 1..*end {
-                    new_bounds = new_bounds.union(&self.face_bounds(i))
-                }
-                *bounds = new_bounds;
-            }
-        };
+            node.bounds = new_bounds;
+        }
         self.nodes[node_idx] = node;
     }
 
     fn subdivide(&mut self, node_idx: usize, threshold: usize) {
         let node = self.nodes[node_idx];
-        let node = match node {
-            BVHNode::Internal {
-                bounds,
-                left,
-                right,
-            } => {
-                self.subdivide(left, threshold);
-                self.subdivide(right, threshold);
+        let node = if !node.is_leaf {
+            self.subdivide(node.left, threshold);
+            self.subdivide(node.right, threshold);
+            return;
+        } else {
+            // Don't subdivide if the number of circles within threshold:
+            if node.end - node.start <= threshold {
                 return;
             }
-            BVHNode::Leaf { bounds, start, end } => {
-                // Don't subdivide if the number of circles within threshold:
-                if end - start <= threshold {
-                    return;
+
+            // Compute the longest axis, on which we will split
+            let extent = node.bounds.ub - node.bounds.lb;
+            let mut axis = 0;
+            if extent.y > extent.x {
+                axis = 1
+            };
+            if extent.z > extent[axis] {
+                axis = 2
+            };
+
+            // Get the median circle
+            let split = node.bounds.lb[axis] + extent[axis] / 2.0;
+            let (mut i, mut j) = (node.start, node.end - 1);
+            while i <= j {
+                if self.face_centroid(i)[axis] < split {
+                    i += 1;
+                } else {
+                    self.tri_faces.swap(i, j);
+                    j -= 1;
                 }
+            }
 
-                // Compute the longest axis, on which we will split
-                let extent = bounds.ub - bounds.lb;
-                let mut axis = 0;
-                if extent.y > extent.x {
-                    axis = 1
-                };
-                if extent.z > extent[axis] {
-                    axis = 2
-                };
+            if i == node.end - 1 || i == node.start {
+                // Either empty or one sided, so make no changes.
+                // This is probably unreachable given i use the median
+                // and a threshold, but here to be safe.
+                return;
+            }
 
-                // Get the median circle
-                let split = bounds.lb[axis] + extent[axis] / 2.0;
-                let (mut i, mut j) = (start, end - 1);
-                while i <= j {
-                    if self.face_centroid(i)[axis] < split {
-                        i += 1;
-                    } else {
-                        self.tri_faces.swap(i, j);
-                        j -= 1;
-                    }
-                }
+            let left = BVHNode {
+                is_leaf: true,
+                bounds: Default::default(),
+                start: node.start,
+                end: i,
+                ..Default::default()
+            };
+            let right = BVHNode {
+                is_leaf: true,
+                bounds: Default::default(),
+                start: i,
+                end: node.end,
+                ..Default::default()
+            };
 
-                if i == end - 1 || i == start {
-                    // Either empty or one sided, so make no changes.
-                    // This is probably unreachable given i use the median
-                    // and a threshold, but here to be safe.
-                    return;
-                }
+            let l = self.nodes.len();
+            self.nodes.push(left);
+            let r = self.nodes.len();
+            self.nodes.push(right);
 
-                let left = BVHNode::Leaf {
-                    bounds: Default::default(),
-                    start: start,
-                    end: i,
-                };
-                let right = BVHNode::Leaf {
-                    bounds: Default::default(),
-                    start: i,
-                    end: end,
-                };
+            self.compute_bounds(l);
+            self.compute_bounds(r);
+            self.subdivide(l, threshold);
+            self.subdivide(r, threshold);
 
-                let l = self.nodes.len();
-                self.nodes.push(left);
-                let r = self.nodes.len();
-                self.nodes.push(right);
-
-                self.compute_bounds(l);
-                self.compute_bounds(r);
-                self.subdivide(l, threshold);
-                self.subdivide(r, threshold);
-
-                BVHNode::Internal {
-                    bounds: Default::default(),
-                    left: l,
-                    right: r,
-                }
+            BVHNode {
+                is_leaf: false,
+                bounds: Default::default(),
+                left: l,
+                right: r,
+                ..Default::default()
             }
         };
 
@@ -177,39 +158,46 @@ impl BVH {
     /// Must be done after the BVH is fully constructed,
     /// and donly done once.
     pub fn rights_to_skips(&mut self, parent_idx: usize, node_idx: usize) {
-        let BVHNode::Internal {
+        let BVHNode {
             bounds,
             left,
             right,
-        } = self.nodes[node_idx]
-        else {
-            return;
-        };
+            is_leaf,
+            start,
+            end,
+        } = self.nodes[node_idx];
 
-        let BVHNode::Internal { right: p_right, .. } = self.nodes[parent_idx] else {
-            return;
-        };
+        let BVHNode { right: p_right, .. } = self.nodes[parent_idx];
 
         // Left child
-        self.rights_to_skips(node_idx, left);
+        if !is_leaf {
+            self.rights_to_skips(node_idx, left);
+        }
 
         // Self:
-        self.nodes[node_idx] = BVHNode::Internal {
+        self.nodes[node_idx] = BVHNode {
             bounds,
             left,
             right: if node_idx == 0 { 0 } else { p_right },
+            start,
+            end,
+            is_leaf,
         };
 
         // Right child:
-        self.rights_to_skips(node_idx, right);
+        if !is_leaf {
+            self.rights_to_skips(node_idx, right);
+        }
     }
 
     pub fn new(mesh: Mesh) -> BVH {
         let mut bvh = BVH {
-            nodes: vec![BVHNode::Leaf {
+            nodes: vec![BVHNode {
+                is_leaf: true,
                 bounds: AABB::default(),
                 start: 0,
                 end: mesh.faces.len(),
+                ..Default::default()
             }],
             tri_positions: mesh
                 .positions
@@ -241,43 +229,29 @@ impl BVH {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
 pub struct BVHNodeGPU {
-    pub lower_bound: [f32; 4], // last one is padding
-    pub upper_bound: [f32; 4], // last one is padding
-    pub left: u32,             // Left child, (meaningless if 0 || is_leaf)
-    pub right: u32,            // Right child, (meaningless if 0 || is_leaf)
-    pub is_leaf: u32,          // Leaf node? start/end are meaningless if 0
-    pub start: u32,            // Start face, inclusive
-    pub end: u32,              // End face, not inclusive
-    pub _pad: [u32; 3],        // pad struct to 16
+    pub lower_bound: [f32; 3], // last one is padding
+    pub _pad0: u32,
+    pub upper_bound: [f32; 3], // last one is padding
+    pub _pad2: u32,
+    pub left: u32,        // Left child, (meaningless if 0 || is_leaf)
+    pub right: u32,       // Right child, (meaningless if 0 || is_leaf)
+    pub is_leaf: u32,     // Leaf node? start/end are meaningless if 0
+    pub start: u32,       // Start face, inclusive
+    pub end: u32,         // End face, not inclusive
+    pub _pad_2: [u32; 3], // pad struct to 16
 }
 
 impl From<BVHNode> for BVHNodeGPU {
     fn from(value: BVHNode) -> Self {
-        match value {
-            BVHNode::Internal {
-                bounds,
-                left,
-                right,
-            } => BVHNodeGPU {
-                lower_bound: [bounds.lb.x, bounds.lb.y, bounds.lb.z, 0.0],
-                upper_bound: [bounds.ub.x, bounds.ub.y, bounds.ub.z, 0.0],
-                left: left as u32,   // FIXME these should be offset for more bvhs
-                right: right as u32, // But 0 should not be offset, its just null
-                is_leaf: 0,
-                start: 0,
-                end: 0,
-                ..Default::default()
-            },
-            BVHNode::Leaf { bounds, start, end } => BVHNodeGPU {
-                lower_bound: [bounds.lb.x, bounds.lb.y, bounds.lb.z, 0.0],
-                upper_bound: [bounds.ub.x, bounds.ub.y, bounds.ub.z, 0.0],
-                left: 0,
-                right: 0,
-                is_leaf: 1,
-                start: start as u32,
-                end: end as u32,
-                ..Default::default()
-            },
+        BVHNodeGPU {
+            lower_bound: [value.bounds.lb.x, value.bounds.lb.y, value.bounds.lb.z],
+            upper_bound: [value.bounds.ub.x, value.bounds.ub.y, value.bounds.ub.z],
+            left: value.left as u32,
+            right: value.right as u32,
+            is_leaf: value.is_leaf as u32,
+            start: value.start as u32,
+            end: value.end as u32,
+            ..Default::default()
         }
     }
 }
@@ -302,7 +276,7 @@ impl BLAS {
         let mut vertex_offset = 0;
         let mut node_offset = 0;
 
-        dbg!(&bvhs[0].nodes);
+        // dbg!(&bvhs[0].nodes[0..30]);
 
         for mut bvh in bvhs {
             // TODO: Can be optimised using a hashmap/btreemap to re-id
@@ -312,7 +286,7 @@ impl BLAS {
             // Ideally have a seperate normal index which is nullable.
             // Move offset to the end of this meshes vertices
             if bvh.tri_positions.len() != bvh.tri_normals.len() {
-                panic!("BAD! LOOK AT THE FIXME ABOVE");
+                // panic!("BAD! LOOK AT THE FIXME ABOVE");
             }
             let tpl = bvh.tri_positions.len();
             let tfl = bvh.tri_faces.len();
@@ -359,6 +333,12 @@ impl BLAS {
             face_offset += tfl as u32;
             node_offset += nl as u32;
         }
+
+        if tri_normals.len() == 0 {
+            tri_normals.push(Default::default());
+        }
+
+        dbg!(&nodes[0]);
 
         // Make the node buffer:
         let node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

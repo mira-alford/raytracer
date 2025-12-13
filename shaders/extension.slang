@@ -6,8 +6,8 @@ import queue;
 import hit;
 
 struct BVHNode {
-  float3 lb;
-  float3 ub;
+  float4 lb;
+  float4 ub;
   uint left;
   uint right;
   uint is_leaf;
@@ -20,7 +20,7 @@ struct Sphere {
   float radius;
 
   void raySphereIntersect(Ray ray, out float t, out Hit h) {
-    t = -1;
+    t = float.maxValue;
     h = Hit();
     h.pos = float3(-1);
     let l = position - ray.pos;
@@ -82,90 +82,60 @@ void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h)
   }
   t = f * dot(e2, r);
 
-  // h.norm = normalize(cross(e1, e2));
-  h.norm = n0 * (1.0 - u - v) + n1 * u + n2 * v;
+  h.norm = normalize(cross(e1, e2));
+  // h.norm = n0 * (1.0 - u - v) + n1 * u + n2 * v;
   h.pos = ray.pos + t * ray.dir;
   return;
 }
 
-void rayBoxIntersect(Ray ray, float3 lb, float3 ub, out float t) {
-  t = -1.0;
-  var t_min = float.minValue;
-  var t_max = float.maxValue;
-  let a_c = (lb + ub) / 2.0;
-  let p = a_c - ray.pos;
-  let uvw = normalize(ub - lb);
-  let h = (ub - lb) / 2;
-  for (int i = 0; i < 3; i++) {
-    let e = dot(uvw[i], p);
-    let f = dot(uvw[i], ray.dir);
-    if (abs(f) > 10e-20) {
-      var t1 = (e+h[i])/f;
-      var t2 = (e-h[i])/f;
-      if (t1 > t2) {
-        let temp = t2;
-        t2 = t1;
-        t1 = temp;
-      }
-      if (t1 > t_min) {
-        t_min = t1;
-      }
-      if (t2 < t_max) {
-        t_max = t2;
-      }
-      if (t_min > t_max) {
-        return;
-      }
-      if (t_max < 0) {
-        return;
-      }
-    } else if (- e - h[i] > 0 || -e + h[i] < 0) {
-      return;
-    }
+bool rayBoxIntersect(Ray ray, float3 lb, float3 ub, float tmax) {
+  var tmin = 0.0;
+  let dir_inv = 1.0 / ray.dir;
+
+  for (int d = 0; d < 3; d++) {
+    let sign = dir_inv[d] > 0;
+    float bmin = select(sign, lb[d], ub[d]);
+    float bmax = select(!sign, lb[d], ub[d]);
+
+    float dmin = (bmin - ray.pos[d]) * dir_inv[d];
+    float dmax = (bmax - ray.pos[d]) * dir_inv[d];
+
+    tmin = max(dmin, tmin);
+    tmax = min(dmax, tmax);
   }
-  if (t_min > 0) {
-    t = t_min;
-  }
-  else {
-    t = t_max;
-  }
-  return;
+
+  return tmin < tmax;
 }
 
 void rayBVHIntersect(Ray ray, uint bvh_node, out float2 uv, out float t, out Hit h) {
   let root = bvh_node;
   var current = bvh_node;
   t = float.maxValue;
-  h = Hit();
+  h = Hit(float3(0.0),float3(0.0));
   uv = float2(0.0);
+  float t2;
+  Hit h2;
+  float2 uv2;
   do {
     let node = bvh_nodes[current];
-    if (node.is_leaf == 0) {
-      // Internal node.
-      var tp = -1.0;
-      rayBoxIntersect(ray, node.lb, node.ub, tp);
-      if (tp < 0.0) {
-        // Failed to hit, skip to right
-        current = node.right;
-      } else {
-        current = node.left;
-      }
-    } else {
-      // Leaf node. Iterate primitives and check:
-      for (int p = node.start; p < node.end; p++) {
-        let face = tri_faces[p];
-        float t2;
-        Hit h2;
-        float2 uv2;
-        rayTriIntersect(face, ray, uv2, t2, h2);
-        if (t2 >= 0 && t2 < t) {
-          t = t2;
-          h = h2;
-          uv = uv2;
-        }
-      }
-      current = node.right;
+
+    let hit = rayBoxIntersect(ray, node.lb.xyz, node.ub.xyz, t);
+    current = select(!hit, node.right, node.left);
+    if (!hit || node.is_leaf == 0) {
+      continue;
     }
+
+    for (int p = node.start; p < node.end; p++) {
+      let face = tri_faces[p];
+      rayTriIntersect(face, ray, uv2, t2, h2);
+
+      if (t2 >= 0 && t2 < t) {
+        t = t2;
+        h = h2;
+        uv = uv2;
+      }
+    }
+    current = node.right;
   } while (root != current);
 }
 
@@ -209,7 +179,7 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     Sphere s = primitives[pid];
     s.raySphereIntersect(path.ray, t2, h2);
 
-    if (t2 >= 0 && t2 <= t) {
+    if (t2 >= 0 && t2 < t) {
       hits[index].mat = 1;
       t = t2;
       h = h2;
@@ -220,10 +190,10 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     float t2;
     Hit h2;
     float2 uv;
-    // rayTriIntersect(tri_faces[bid], path.ray, uv, t2, h2);
+
     rayBVHIntersect(path.ray, bid, uv, t2, h2);
 
-    if (t2 >= 0 && t2 <= t) {
+    if (t2 >= 0 && t2 < t) {
       hits[index].mat = 2;
       t = t2;
       h = h2;

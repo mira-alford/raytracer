@@ -10,7 +10,8 @@ fn build_slang(file: &str) {
     let output_json = out_dir.join(format!("{}.json", file));
     let output_rs = out_dir.join(format!("{}_reflection.rs", file));
     let output = std::process::Command::new("slangc")
-        .args(["-profile", "sm_4_0"])
+        // .args(["-profile", "sm_5_0"])
+        .args(["-profile", "glsl_450"])
         .args([
             &format!("{}/../../shaders/{}.slang", manifest_dir, file),
             "-o",

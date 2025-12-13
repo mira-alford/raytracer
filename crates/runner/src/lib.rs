@@ -109,7 +109,7 @@ impl State {
         // Load models:
         let mut load_options = tobj::GPU_LOAD_OPTIONS;
         load_options.single_index = false;
-        let (models, materials) = tobj::load_obj("assets/suzanne.obj", &load_options).unwrap();
+        let (models, materials) = tobj::load_obj("assets/dragon.obj", &load_options).unwrap();
         let mesh = mesh::Mesh::from_model(&models[0].mesh);
         let bvhs = vec![bvh::BVH::new(mesh)];
         let blas = bvh::BLAS::new(&device, bvhs);
@@ -135,7 +135,7 @@ impl State {
         );
 
         let mut rng = rand::rng();
-        let mut spheres = (0..4)
+        let mut spheres = (0..0)
             .map(|_| Sphere {
                 position: [
                     rng.random_range(-10.0..=10.0),
@@ -147,6 +147,7 @@ impl State {
             .collect::<Vec<_>>();
         spheres.push(Sphere {
             position: [5.0, -10000.0, 3.0],
+            // position: [5.0, -10000000.0, 3.0],
             radius: 9999.0,
             ..Default::default()
         });

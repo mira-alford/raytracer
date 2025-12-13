@@ -30,6 +30,7 @@ public int queueRead(
   out uint outVal
 ) {
   uint index;
+  outVal = -1;
   InterlockedAdd(qh[0].readCounter, 1, index);
   if (index > qh[0].writeCounter) {
     return -1;
