@@ -117,8 +117,8 @@ void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h)
   }
   t = f * dot(e2, r);
 
-  h.norm = normalize(cross(e1, e2));
-  // h.norm = n0 * (1.0 - u - v) + n1 * u + n2 * v;
+  // h.norm = normalize(cross(e1, e2));
+  h.norm = n0 * (1.0 - u - v) + n1 * u + n2 * v;
   h.pos = ray.pos + t * ray.dir;
   return;
 }
@@ -206,8 +206,13 @@ float4x4 rotate(float3 factor) {
   );
 }
 
-float4x4 translalte(float3 factor) {
-  
+float4x4 translate(float3 factor) {
+  return float4x4(
+    float4(1.0,0.0,0.0,factor.x),
+    float4(0.0,1.0,0.0,factor.y),
+    float4(0.0,0.0,1.0,factor.z),
+    float4(0.0,0.0,0.0,1.0)
+  );
 }
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
@@ -267,8 +272,27 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     Hit h2;
     float2 uv;
 
-    
+    // float4x4 m = translate(instance.transform.translation.xyz)
+    //               * rotate(instance.transform.rotation.xyz)
+    //               * scale(instance.transform.scale.xyz);
+
+    // float4x4 mi = scale(1/instance.transform.scale.xyz)
+    //               * rotate(-instance.transform.rotation.xyz)
+    //               * translate(-instance.transform.translation.xyz);
+    float4x4 m = mul(translate(instance.transform.translation.xyz),
+                 rotate(instance.transform.rotation.xyz));
+    float4x4 mi = mul(transpose(rotate(instance.transform.rotation.xyz)),
+                 translate(-instance.transform.translation.xyz));
+
+    path.ray.pos = (mul(mi, float4(path.ray.pos,1.0))).xyz;
+    path.ray.dir = (mul(mi, float4(path.ray.dir,0.0))).xyz;
+
     rayBVHIntersect(path.ray, bid, uv, t2, h2);
+
+    path.ray.pos = (mul(m, float4(path.ray.pos,1.0))).xyz;
+    path.ray.dir = (mul(m, float4(path.ray.dir,0.0))).xyz;
+    h2.pos = (mul(m, float4(h2.pos,1.0))).xyz;
+    h2.norm= (mul(m, float4(h2.norm,0.0))).xyz;
 
     if (t2 >= 0 && t2 < t) {
       hits[index].mat = instance.material;

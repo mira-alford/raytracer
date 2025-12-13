@@ -12,7 +12,7 @@ mod queue;
 mod render;
 mod texture;
 
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, f32::consts::PI, sync::Arc};
 
 use rand::Rng;
 use winit::{
@@ -119,42 +119,47 @@ impl State {
         load_options.single_index = false;
 
         // Teapot!
-        let (models, materials) = tobj::load_obj("assets/teapot.obj", &load_options).unwrap();
-        let mesh = mesh::Mesh::from_model(&models[0].mesh);
+        // let (models, materials) = tobj::load_obj("assets/teapot.obj", &load_options).unwrap();
+        // let mesh = mesh::Mesh::from_model(&models[0].mesh);
 
         // Suzanne!
         let (models, materials) = tobj::load_obj("assets/suzanne.obj", &load_options).unwrap();
         let mesh2 = mesh::Mesh::from_model(&models[0].mesh);
 
         // Make the BLAS:
-        let bvhs = vec![bvh::BVH::new(mesh), bvh::BVH::new(mesh2)];
+        let bvhs = vec![bvh::BVH::new(mesh2)];
         let blas = bvh::BLAS::new(&device, bvhs);
 
         // Instances
-        let instances = vec![
-            Instance {
-                transform: instance::Transform {
-                    scale: [1.0, 1.0, 1.0],
-                    rotation: [0.0, 0.0, 0.0],
-                    translation: [0.0, 0.0, 0.0],
-                    ..Default::default()
-                },
-                mesh: 0,
-                material: 1,
-                ..Default::default()
-            },
-            Instance {
-                transform: instance::Transform {
-                    scale: [1.0, 1.0, 1.0],
-                    rotation: [0.0, 0.0, 0.0],
-                    translation: [0.0, 5.0, 0.0],
-                    ..Default::default()
-                },
-                mesh: 1,
-                material: 2,
-                ..Default::default()
-            },
-        ];
+        // let mut instances = vec![Instance {
+        // transform: instance::Transform {
+        //     scale: [1.0, 1.0, 1.0],
+        //     rotation: [0.0, 0.0, 0.0],
+        //     translation: [0.0, 5.0, 0.0],
+        //     ..Default::default()
+        // },
+        // mesh: 1,
+        // material: 2,
+        // ..Default::default()
+        // }];
+        let mut instances = vec![];
+        for x in 0..10 {
+            for y in 0..10 {
+                for z in 0..1 {
+                    instances.push(Instance {
+                        transform: instance::Transform {
+                            scale: [1.0, 1.0, 1.0],
+                            rotation: [0.0, 0.0, 0.0],
+                            translation: [x as f32 * 3.0, y as f32 * 3.0, z as f32 * 3.0],
+                            ..Default::default()
+                        },
+                        mesh: 0,
+                        material: rand::random_range(1..=2),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
         let instances = Instances::new(&device, instances);
 
         // Make a bunch of queues:
