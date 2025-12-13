@@ -1,6 +1,7 @@
 mod bvh;
 mod camera;
 mod extension;
+mod instance;
 mod lambertian;
 mod logic;
 mod material;
@@ -23,7 +24,12 @@ use winit::{
     window::Window,
 };
 
-use crate::{bvh::BLAS, extension::Sphere, mesh::Meshes};
+use crate::{
+    bvh::BLAS,
+    extension::Sphere,
+    instance::{Instance, Instances},
+    mesh::Meshes,
+};
 
 pub struct State {
     surface: wgpu::Surface<'static>,
@@ -40,6 +46,7 @@ pub struct State {
     new_ray_phase: new_ray::NewRayPhase,
     lambertian_phase: lambertian::LambertianPhase,
     extension_phase: extension::ExtensionPhase,
+    instances: Instances,
     blas: BLAS,
     camera: camera::Camera,
     window: Arc<Window>,
@@ -73,6 +80,7 @@ impl State {
             .await?;
 
         let mut limits = wgpu::Limits::defaults();
+        limits.max_bind_groups = 5;
         // limits.max_storage_buffer_binding_size = 184549552;
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
@@ -109,10 +117,45 @@ impl State {
         // Load models:
         let mut load_options = tobj::GPU_LOAD_OPTIONS;
         load_options.single_index = false;
-        let (models, materials) = tobj::load_obj("assets/dragon.obj", &load_options).unwrap();
+
+        // Teapot!
+        let (models, materials) = tobj::load_obj("assets/teapot.obj", &load_options).unwrap();
         let mesh = mesh::Mesh::from_model(&models[0].mesh);
-        let bvhs = vec![bvh::BVH::new(mesh)];
+
+        // Suzanne!
+        let (models, materials) = tobj::load_obj("assets/suzanne.obj", &load_options).unwrap();
+        let mesh2 = mesh::Mesh::from_model(&models[0].mesh);
+
+        // Make the BLAS:
+        let bvhs = vec![bvh::BVH::new(mesh), bvh::BVH::new(mesh2)];
         let blas = bvh::BLAS::new(&device, bvhs);
+
+        // Instances
+        let instances = vec![
+            Instance {
+                transform: instance::Transform {
+                    scale: [1.0, 1.0, 1.0],
+                    rotation: [0.0, 0.0, 0.0],
+                    translation: [0.0, 0.0, 0.0],
+                    ..Default::default()
+                },
+                mesh: 0,
+                material: 1,
+                ..Default::default()
+            },
+            Instance {
+                transform: instance::Transform {
+                    scale: [1.0, 1.0, 1.0],
+                    rotation: [0.0, 0.0, 0.0],
+                    translation: [0.0, 5.0, 0.0],
+                    ..Default::default()
+                },
+                mesh: 1,
+                material: 2,
+                ..Default::default()
+            },
+        ];
+        let instances = Instances::new(&device, instances);
 
         // Make a bunch of queues:
         let paths = path::Paths::new(&device, dims);
@@ -135,7 +178,7 @@ impl State {
         );
 
         let mut rng = rand::rng();
-        let mut spheres = (0..0)
+        let mut spheres = (0..4)
             .map(|_| Sphere {
                 position: [
                     rng.random_range(-10.0..=10.0),
@@ -158,6 +201,7 @@ impl State {
             &extension_queue,
             &blas,
             spheres.as_slice(),
+            &instances,
         );
 
         Ok(Self {
@@ -176,6 +220,7 @@ impl State {
             new_ray_queue,
             lambertian_queue,
             extension_queue,
+            instances,
             camera,
             dims,
             keys_pressed: HashSet::new(),
@@ -285,6 +330,7 @@ impl State {
             &self.paths,
             &self.extension_queue,
             &self.blas,
+            &self.instances,
         );
 
         let renderer_commands =

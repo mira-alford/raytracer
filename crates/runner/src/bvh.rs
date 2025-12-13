@@ -108,7 +108,7 @@ impl BVH {
                 }
             }
 
-            if i == node.end - 1 || i == node.start {
+            if i == node.end || i == node.start {
                 // Either empty or one sided, so make no changes.
                 // This is probably unreachable given i use the median
                 // and a threshold, but here to be safe.
@@ -219,7 +219,7 @@ impl BVH {
         bvh.compute_bounds(0);
 
         // Subdivide until all BVHs have at most 4 elements
-        bvh.subdivide(0, 32);
+        bvh.subdivide(0, 8);
         bvh.rights_to_skips(0, 0);
 
         bvh
@@ -258,6 +258,7 @@ impl From<BVHNode> for BVHNodeGPU {
 
 pub struct BLAS {
     pub nodes: Vec<BVHNodeGPU>,
+    pub roots: Vec<u32>,
     pub tri_positions: Vec<[f32; 4]>,
     pub tri_normals: Vec<[f32; 4]>,
     pub tri_faces: Vec<[u32; 4]>,
@@ -272,13 +273,12 @@ impl BLAS {
         let mut tri_positions = Vec::new();
         let mut tri_normals = Vec::new();
         let mut tri_faces = Vec::new();
+        let mut roots = Vec::new();
         let mut face_offset = 0;
         let mut vertex_offset = 0;
         let mut node_offset = 0;
 
-        // dbg!(&bvhs[0].nodes[0..30]);
-
-        for mut bvh in bvhs {
+        for bvh in bvhs {
             // TODO: Can be optimised using a hashmap/btreemap to re-id
             // all the vertices shared between meshes.
             // FIXME: Assumes normals have exact same length as positions
@@ -291,6 +291,8 @@ impl BLAS {
             let tpl = bvh.tri_positions.len();
             let tfl = bvh.tri_faces.len();
             let nl = bvh.nodes.len();
+
+            roots.push(node_offset);
 
             nodes.append(
                 &mut bvh
@@ -338,8 +340,6 @@ impl BLAS {
             tri_normals.push(Default::default());
         }
 
-        dbg!(&nodes[0]);
-
         // Make the node buffer:
         let node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("BVHNode buffer"),
@@ -365,6 +365,13 @@ impl BLAS {
         let normal_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Normal buffer"),
             contents: bytemuck::cast_slice(&tri_normals),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+
+        // Maps bvh/mesh ids (the order they come in) to their root location
+        let root_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Root buffer"),
+            contents: bytemuck::cast_slice(&roots),
             usage: wgpu::BufferUsages::STORAGE,
         });
 
@@ -411,6 +418,16 @@ impl BLAS {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -434,11 +451,16 @@ impl BLAS {
                     binding: 3,
                     resource: normal_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: root_buffer.as_entire_binding(),
+                },
             ],
         });
 
         Self {
             nodes,
+            roots,
             tri_positions,
             tri_normals,
             tri_faces,

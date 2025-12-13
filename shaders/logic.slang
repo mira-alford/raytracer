@@ -41,7 +41,7 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     // Path has never been generated
     // Set the pos:
     path.screen_pos = float2(threadId.xy) / 1024.0;
-    path.bounces = 8;
+    path.bounces = 32;
     path.terminated = 0;
     path.throughput = float3(1.0);
     path.rad = float3(0.0);

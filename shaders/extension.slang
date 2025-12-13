@@ -49,6 +49,41 @@ struct Sphere {
   }
 }
 
+// #[repr(C)]
+// #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
+// pub struct Transform {
+//     pub scale: [f32; 3],
+//     pub _pad0: [u32; 1],
+//     pub rotation: [f32; 3],
+//     pub _pad1: [u32; 1],
+//     pub translation: [f32; 3],
+//     pub _pad2: [u32; 1],
+// }
+
+// #[repr(C)]
+// #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
+// pub struct Instance {
+//     /// Each instance transforms that mesh
+//     pub transform: Transform,
+//     /// Each instance points at a mesh
+//     pub mesh: u32,
+//     /// Each instance has its own material
+//     pub material: u32,
+//     pub pad_0: [u32; 2], // to make the overall struct 16 byte aligned??
+// }
+
+struct Transform {
+  float4 scale;
+  float4 rotation;
+  float4 translation;
+}
+
+struct Instance {
+  Transform transform;
+  uint mesh;
+  uint material;
+}
+
 void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h) {
   let p0 = tri_positions[face.x];
   let p1 = tri_positions[face.y];
@@ -125,6 +160,7 @@ void rayBVHIntersect(Ray ray, uint bvh_node, out float2 uv, out float t, out Hit
       continue;
     }
 
+    // TODO: Maybe we can batch the triangles somehow?
     for (int p = node.start; p < node.end; p++) {
       let face = tri_faces[p];
       rayTriIntersect(face, ray, uv2, t2, h2);
@@ -139,6 +175,41 @@ void rayBVHIntersect(Ray ray, uint bvh_node, out float2 uv, out float t, out Hit
   } while (root != current);
 }
 
+float4x4 scale(float3 factor) {
+  return float4x4(
+    float4(factor.x,0.0,0.0,0.0),
+    float4(0.0,factor.y,0.0,0.0),
+    float4(0.0,0.0,factor.z,0.0),
+    float4(0.0,0.0,0.0,     1.0)
+  );
+}
+
+float4x4 rotate(float3 factor) {
+  let x = factor.x;
+  let y = factor.y;
+  let z = factor.z;
+  return float4x4(
+    float4(1.0,     0.0,     0.0,     0.0),
+    float4(0.0,     cos(x),  -sin(x), 0.0),
+    float4(0.0,     sin(x),  cos(x),  0.0),
+    float4(0.0,     0.0,     0.0,     1.0)
+  ) * float4x4(
+    float4(cos(y),  0.0,     sin(y),  0.0),
+    float4(0.0,     1.0,     0.0,     0.0),
+    float4(-sin(y), 0.0,     cos(y),  0.0),
+    float4(0.0,     0.0,     0.0,     1.0)
+  ) * float4x4(
+    float4(cos(z),  -sin(z), 0.0,     0.0),
+    float4(sin(z),  cos(z),  0.0,     0.0),
+    float4(0.0   ,  0.0,     1.0,     0.0),
+    float4(0.0   ,  0.0,     0.0,     1.0)
+  );
+}
+
+float4x4 translalte(float3 factor) {
+  
+}
+
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
 [[vk::binding(3,0)]] RWStructuredBuffer<HitData> hits;
 
@@ -151,6 +222,9 @@ void rayBVHIntersect(Ray ray, uint bvh_node, out float2 uv, out float t, out Hit
 [[vk::binding(1,3)]] StructuredBuffer<float3> tri_positions;
 [[vk::binding(2,3)]] StructuredBuffer<uint3> tri_faces;
 [[vk::binding(3,3)]] StructuredBuffer<float3> tri_normals;
+[[vk::binding(4,3)]] StructuredBuffer<uint> bvh_roots;
+
+[[vk::binding(0,4)]] StructuredBuffer<Instance> instances;
 
 [shader("compute")]
 [numthreads(1,1,1)]
@@ -186,15 +260,18 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     }
   }
 
-  for (uint bid = 0; bid < 1; bid++) {
+  for (uint iid = 0; iid < instances.getCount(); iid++) {
+    Instance instance = instances[iid];  
+    uint bid = bvh_roots[instance.mesh];
     float t2;
     Hit h2;
     float2 uv;
 
+    
     rayBVHIntersect(path.ray, bid, uv, t2, h2);
 
     if (t2 >= 0 && t2 < t) {
-      hits[index].mat = 2;
+      hits[index].mat = instance.material;
       t = t2;
       h = h2;
     }
@@ -202,15 +279,12 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
 
 
   if (t < float.maxValue) {
-    // paths[index].rad += float3(dot(h.norm,float3(0.0,0.0,-1.0))) / (5-path.bounces);
     hits[index].hit = h;
     paths[index].bounces -= 1;
     paths[index].terminated = paths[index].terminated | paths[index].bounces == 0;
   } else {
     paths[index].rad += paths[index].throughput * float3(1.0);
     paths[index].terminated = 1;
-    // paths[index].rad = float3(0.0);
-    // paths[index].terminated = 1;
   }
 
 }

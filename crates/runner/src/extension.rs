@@ -1,7 +1,12 @@
 use wesl::include_wesl;
 use wgpu::{include_spirv, util::DeviceExt};
 
-use crate::{bvh::BLAS, mesh::Meshes, path, queue};
+use crate::{
+    bvh::BLAS,
+    instance::{Instance, Instances},
+    mesh::Meshes,
+    path, queue,
+};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
@@ -25,6 +30,7 @@ impl ExtensionPhase {
         extension_queue: &queue::Queue,
         meshes: &BLAS,
         primitives: &[Sphere],
+        instances: &Instances,
     ) -> Self {
         let compute_shader =
             device.create_shader_module(include_spirv!(concat!(env!("OUT_DIR"), "/extension.spv")));
@@ -67,6 +73,7 @@ impl ExtensionPhase {
                 &extension_queue.bind_group_layout,
                 &primitives_bindgroup_layout,
                 &meshes.bindgroup_layout,
+                &instances.bindgroup_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -104,6 +111,7 @@ impl ExtensionPhase {
         path_buffer: &path::Paths,
         extension_queue: &queue::Queue,
         meshes: &BLAS,
+        instances: &Instances,
     ) -> wgpu::CommandBuffer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("ExtensionPhase Encoder"),
@@ -115,6 +123,7 @@ impl ExtensionPhase {
         compute_pass.set_bind_group(1, &extension_queue.bind_group, &[]);
         compute_pass.set_bind_group(2, &self.primitives_bindgroup, &[]);
         compute_pass.set_bind_group(3, &meshes.bindgroup, &[]);
+        compute_pass.set_bind_group(4, &instances.bindgroup, &[]);
         compute_pass.dispatch_workgroups(extension_queue.size.div_ceil(64), 1, 1);
 
         // Reset extension queue after done:
@@ -123,6 +132,7 @@ impl ExtensionPhase {
         compute_pass.set_bind_group(1, &extension_queue.bind_group, &[]);
         compute_pass.set_bind_group(2, &self.primitives_bindgroup, &[]);
         compute_pass.set_bind_group(3, &meshes.bindgroup, &[]);
+        compute_pass.set_bind_group(4, &instances.bindgroup, &[]);
         compute_pass.dispatch_workgroups(1, 1, 1);
 
         drop(compute_pass);
