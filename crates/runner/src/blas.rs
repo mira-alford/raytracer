@@ -49,6 +49,10 @@ impl BVH for BLAS {
     fn node_mut(&mut self, idx: usize) -> &mut BVHNode {
         &mut self.nodes[idx]
     }
+
+    fn node_bounds(&self, idx: usize) -> AABB {
+        self.nodes[idx].bounds
+    }
 }
 
 impl BLAS {

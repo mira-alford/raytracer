@@ -57,7 +57,7 @@ pub struct State {
     metallic_phase: metallic::MetallicPhase,
     extension_phase: extension::ExtensionPhase,
     instances: Instances,
-    blas: blas::BLASData,
+    blas_data: blas::BLASData,
     camera: camera::Camera,
     window: Arc<Window>,
     dims: (u32, u32),
@@ -142,10 +142,6 @@ impl State {
         let (models, materials) = tobj::load_obj("assets/dragon.obj", &load_options).unwrap();
         meshes.push(mesh::Mesh::from_model(&models[0].mesh));
 
-        // Make the BLAS:
-        let bvhs = meshes.into_iter().map(|m| blas::BLAS::new(m)).collect_vec();
-        let blas = blas::BLASData::new(&device, bvhs);
-
         // Make material data for lambertian:
         let mut lambertian_data = vec![
             // For now, 3 instances, r/g/b each
@@ -201,7 +197,7 @@ impl State {
                             ),
                             ..Default::default()
                         },
-                        mesh: random_range(0..blas.roots.len() as u32),
+                        mesh: random_range(0..meshes.len() as u32),
                         material: material, // Lambertian
                         material_idx: material_idx,
                         ..Default::default()
@@ -210,6 +206,12 @@ impl State {
             }
         }
         let instances = Instances::new(&device, instances);
+
+        // Make the BLAS & TLAS
+        let blases = meshes.into_iter().map(|m| blas::BLAS::new(m)).collect_vec();
+        let tlas = tlas::TLAS::new(&blases, &instances.instances);
+
+        let blas_data = blas::BLASData::new(&device, blases);
 
         // Make a bunch of queues:
         let paths = path::Paths::new(&device, dims);
@@ -268,7 +270,7 @@ impl State {
             &device,
             &paths,
             &extension_queue,
-            &blas,
+            &blas_data,
             spheres.as_slice(),
             &instances,
         );
@@ -295,7 +297,7 @@ impl State {
             camera,
             dims,
             keys_pressed: HashSet::new(),
-            blas,
+            blas_data,
         })
     }
 
@@ -406,7 +408,7 @@ impl State {
             &self.device,
             &self.paths,
             &self.extension_queue,
-            &self.blas,
+            &self.blas_data,
             &self.instances,
         );
 

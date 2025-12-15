@@ -45,6 +45,8 @@ pub trait BVH {
 
     fn node(&self, idx: usize) -> &BVHNode;
 
+    fn node_bounds(&self, idx: usize) -> AABB;
+
     fn push_node(&mut self, node: BVHNode) -> usize;
 
     fn node_mut(&mut self, idx: usize) -> &mut BVHNode;
