@@ -10,7 +10,7 @@ bytemuck.workspace = true
 clap = { workspace = true, features = ["derive"] }
 env_logger = { workspace = true }
 futures = { workspace = true, features = ["std"] }
-glam.workspace = true
+glam = { workspace = true, features = ["bytemuck"] }
 image = { workspace = true }
 itertools = "0.14.0"
 phf.workspace = true

@@ -75,17 +75,25 @@
             (lib.fileset.maybeMissing ./shaders)
           ];
         };
+
+        runner = craneLib.buildPackage {
+          inherit src;
+          # pname = "runner";
+          cargoExtraArgs = "--workspace";
+        };
       in
       {
-        packages.default = craneLib.buildPackage {
-          inherit src;
-        };
+        packages.default = runner;
+
+        src = src;
 
         devShells.default = craneLib.devShell {
           # RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
           LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath runtimeDeps}";
 
           hardeningDisable = [ "fortify" ];
+
+          # inputsFrom = [ runner ];
 
           packages =
             (with pkgs; [

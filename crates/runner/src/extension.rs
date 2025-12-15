@@ -2,7 +2,7 @@ use wesl::include_wesl;
 use wgpu::{include_spirv, util::DeviceExt};
 
 use crate::{
-    bvh::BLAS,
+    blas::{self, BLASData},
     instance::{Instance, Instances},
     mesh::Meshes,
     path, queue,
@@ -28,7 +28,7 @@ impl ExtensionPhase {
         device: &wgpu::Device,
         paths: &path::Paths,
         extension_queue: &queue::Queue,
-        meshes: &BLAS,
+        meshes: &blas::BLASData,
         primitives: &[Sphere],
         instances: &Instances,
     ) -> Self {
@@ -110,7 +110,7 @@ impl ExtensionPhase {
         device: &wgpu::Device,
         path_buffer: &path::Paths,
         extension_queue: &queue::Queue,
-        meshes: &BLAS,
+        meshes: &blas::BLASData,
         instances: &Instances,
     ) -> wgpu::CommandBuffer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

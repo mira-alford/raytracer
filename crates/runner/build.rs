@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     io::{BufWriter, Read, Write},
+    os::unix::process,
     path::{Path, PathBuf},
 };
 
@@ -9,8 +10,9 @@ fn build_slang(file: &str) {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
 
     eprintln!("{}", std::env::var("PWD").unwrap());
-    eprintln!("{}", std::env::var("PWD").unwrap());
-    eprintln!("{}", std::env::var("PWD").unwrap());
+    eprintln!("{}", manifest_dir);
+    let out = std::process::Command::new("ls").output().unwrap();
+    eprintln!("{:?}", out);
     let shader = Path::new(&manifest_dir)
         .join("..")
         .join("..")

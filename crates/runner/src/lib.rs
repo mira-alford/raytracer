@@ -1,3 +1,4 @@
+mod blas;
 mod bvh;
 mod camera;
 mod extension;
@@ -17,6 +18,7 @@ mod tlas;
 use core::f32;
 use std::{collections::HashSet, f32::consts::PI, sync::Arc};
 
+use glam::Vec3;
 use itertools::Itertools;
 use rand::{Rng, random_range};
 use winit::{
@@ -29,7 +31,7 @@ use winit::{
 };
 
 use crate::{
-    bvh::BLAS,
+    blas::BLASData,
     extension::Sphere,
     instance::{Instance, Instances},
     lambertian::LambertianData,
@@ -55,7 +57,7 @@ pub struct State {
     metallic_phase: metallic::MetallicPhase,
     extension_phase: extension::ExtensionPhase,
     instances: Instances,
-    blas: BLAS,
+    blas: blas::BLASData,
     camera: camera::Camera,
     window: Arc<Window>,
     dims: (u32, u32),
@@ -141,8 +143,8 @@ impl State {
         meshes.push(mesh::Mesh::from_model(&models[0].mesh));
 
         // Make the BLAS:
-        let bvhs = meshes.into_iter().map(|m| bvh::BVH::new(m)).collect_vec();
-        let blas = bvh::BLAS::new(&device, bvhs);
+        let bvhs = meshes.into_iter().map(|m| blas::BLAS::new(m)).collect_vec();
+        let blas = blas::BLASData::new(&device, bvhs);
 
         // Make material data for lambertian:
         let mut lambertian_data = vec![
@@ -188,17 +190,15 @@ impl State {
                         2 => random_range(0..metallic_data.len() as u32),
                         _ => panic!(),
                     };
-                    let scale = random_range(1.0..=2.0);
                     instances.push(Instance {
                         transform: instance::Transform {
-                            scale: [scale, scale, scale],
-                            rotation: [0.0, 0.0, 0.0]
-                                .map(|_| random_range(0.0..2.0 * f32::consts::PI)),
-                            translation: [
+                            scale: Vec3::splat(random_range(1.0..=2.0)),
+                            rotation: Vec3::ZERO.map(|_| random_range(0.0..2.0 * f32::consts::PI)),
+                            translation: Vec3::new(
                                 x as f32 * 3.0 - 15.0,
                                 y as f32 * 3.0,
                                 z as f32 * 3.0 + 5.0,
-                            ],
+                            ),
                             ..Default::default()
                         },
                         mesh: random_range(0..blas.roots.len() as u32),

@@ -1,24 +1,19 @@
-// use crate::bvh::AABB;
+use glam::UVec3;
+use glam::Vec3;
+use itertools::Itertools;
+use wgpu::util::DeviceExt;
 
-// #[derive(Clone, Copy, Debug, Default)]
-// pub struct TLASNode {
-//     bounds: AABB,
-//     left: usize,
-//     right: usize,
-//     is_leaf: bool,
-//     blas: usize, // Reference to a single blas node if this is a leaf
-// }
+use crate::bvh::AABB;
+use crate::bvh::BVH;
+use crate::bvh::BVHNode;
+use crate::bvh::BVHNodeGPU;
+use crate::instance::Transform;
+use crate::mesh::Mesh;
 
-// impl TLASNode {
-//     fn bounds(&self) -> AABB {
-//         self.bounds
-//     }
-// }
-
-// #[derive(Debug)]
-// pub struct BVH {
-//     pub nodes: Vec<TLASNode>,
-//     pub tri_positions: Vec<Vec3>,
-//     pub tri_faces: Vec<UVec3>,
-//     pub tri_normals: Vec<Vec3>,
-// }
+#[derive(Debug)]
+pub struct TLAS {
+    pub nodes: Vec<BVHNode>,
+    pub blas: Vec<usize>,
+    pub blas_aabb: Vec<AABB>,
+    pub blas_transform: Vec<Transform>,
+}

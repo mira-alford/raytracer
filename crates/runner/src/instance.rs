@@ -1,13 +1,14 @@
+use glam::Vec3;
 use wgpu::util::DeviceExt;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
 pub struct Transform {
-    pub scale: [f32; 3],
+    pub scale: Vec3,
     pub _pad0: [u32; 1],
-    pub rotation: [f32; 3],
+    pub rotation: Vec3,
     pub _pad1: [u32; 1],
-    pub translation: [f32; 3],
+    pub translation: Vec3,
     pub _pad2: [u32; 1],
 }
 
