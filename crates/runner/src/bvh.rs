@@ -219,7 +219,7 @@ impl BVH {
         bvh.compute_bounds(0);
 
         // Subdivide until all BVHs have at most 4 elements
-        bvh.subdivide(0, 8);
+        bvh.subdivide(0, 32);
         bvh.rights_to_skips(0, 0);
 
         bvh

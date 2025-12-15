@@ -164,7 +164,7 @@ impl State {
             .clone()
             .into_iter()
             .map(|ld| MetallicData {
-                albedo: ld.albedo,
+                albedo: ld.albedo.map(|_| random_range(0.0..=1.0)),
                 fuzz: random_range(0.0..=1.0),
                 ..Default::default()
             })
@@ -187,7 +187,11 @@ impl State {
                             scale: [scale, scale, scale],
                             rotation: [0.0, 0.0, 0.0]
                                 .map(|_| random_range(0.0..2.0 * f32::consts::PI)),
-                            translation: [x as f32 * 3.0, y as f32 * 3.0, z as f32 * 3.0],
+                            translation: [
+                                x as f32 * 3.0 - 15.0,
+                                y as f32 * 3.0,
+                                z as f32 * 3.0 + 5.0,
+                            ],
                             ..Default::default()
                         },
                         mesh: 0,
