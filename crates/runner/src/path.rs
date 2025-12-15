@@ -49,7 +49,8 @@ pub struct SamplingState {
 pub struct HitData {
     pub hit: Hit,
     pub mat: u32,
-    pub _pad3: [u32; 3], // pad to 16 byte boundary
+    pub mat_data: u32,
+    pub _pad3: [u32; 2], // pad to 16 byte boundary
 }
 
 #[repr(C)]

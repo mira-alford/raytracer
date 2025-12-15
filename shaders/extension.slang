@@ -59,6 +59,7 @@ struct Instance {
   Transform transform;
   uint mesh;
   uint material;
+  uint material_data;
 }
 
 void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h) {
@@ -243,6 +244,7 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
 
     if (t2 >= 0 && t2 < t) {
       hits[index].mat = 1;
+      hits[index].mat_data = 0;
       t = t2;
       h = h2;
     }
@@ -255,6 +257,7 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     Hit h2;
     float2 uv;
 
+    // TODO optimise this by precomputing the matrices please
     float4x4 m = mul(translate(instance.transform.translation.xyz),
                  mul(rotate(instance.transform.rotation.xyz),
                      scale(instance.transform.scale.xyz)));
@@ -274,6 +277,7 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
 
     if (t2 >= 0 && t2 < t) {
       hits[index].mat = instance.material;
+      hits[index].mat_data = instance.material_data;
       t = t2;
       h = h2;
     }

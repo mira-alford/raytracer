@@ -15,7 +15,7 @@ mod texture;
 use core::f32;
 use std::{collections::HashSet, f32::consts::PI, sync::Arc};
 
-use rand::Rng;
+use rand::{Rng, random_range};
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalPosition, PhysicalPosition},
@@ -29,6 +29,7 @@ use crate::{
     bvh::BLAS,
     extension::Sphere,
     instance::{Instance, Instances},
+    lambertian::LambertianData,
     mesh::Meshes,
 };
 
@@ -131,6 +132,24 @@ impl State {
         let bvhs = vec![bvh::BVH::new(mesh2)];
         let blas = bvh::BLAS::new(&device, bvhs);
 
+        // Make material data for lambertian:
+        let lambertian_data = vec![
+            // For now, 3 instances, r/g/b each
+            LambertianData {
+                albedo: [0.9, 0.9, 0.9, 0.0],
+            },
+            LambertianData {
+                albedo: [0.8, 0.8, 0.9, 0.0],
+            },
+            LambertianData {
+                albedo: [0.8, 0.9, 0.8, 0.0],
+            },
+            LambertianData {
+                albedo: [0.9, 0.8, 0.8, 0.0],
+            },
+        ];
+
+        // Instances:
         let mut instances = vec![];
         for x in 0..10 {
             for y in 0..10 {
@@ -143,7 +162,8 @@ impl State {
                             ..Default::default()
                         },
                         mesh: 0,
-                        material: rand::random_range(1..=2),
+                        material: 1, // Lambertian
+                        material_idx: random_range(1..4),
                         ..Default::default()
                     });
                 }
@@ -168,6 +188,7 @@ impl State {
             &paths,
             &lambertian_queue,
             &extension_queue,
+            lambertian_data,
             Some("Lambertian"),
         );
 

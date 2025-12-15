@@ -20,7 +20,8 @@ pub struct Instance {
     pub mesh: u32,
     /// Each instance has its own material
     pub material: u32,
-    pub pad_0: [u32; 2], // to make the overall struct 16 byte aligned??
+    pub material_idx: u32,
+    pub pad_0: [u32; 1], // to make the overall struct 16 byte aligned??
 }
 
 pub struct Instances {
