@@ -12,6 +12,7 @@ mod queue;
 mod render;
 mod texture;
 
+use core::f32;
 use std::{collections::HashSet, f32::consts::PI, sync::Arc};
 
 use rand::Rng;
@@ -130,18 +131,6 @@ impl State {
         let bvhs = vec![bvh::BVH::new(mesh2)];
         let blas = bvh::BLAS::new(&device, bvhs);
 
-        // Instances
-        // let mut instances = vec![Instance {
-        // transform: instance::Transform {
-        //     scale: [1.0, 1.0, 1.0],
-        //     rotation: [0.0, 0.0, 0.0],
-        //     translation: [0.0, 5.0, 0.0],
-        //     ..Default::default()
-        // },
-        // mesh: 1,
-        // material: 2,
-        // ..Default::default()
-        // }];
         let mut instances = vec![];
         for x in 0..10 {
             for y in 0..10 {
@@ -149,7 +138,7 @@ impl State {
                     instances.push(Instance {
                         transform: instance::Transform {
                             scale: [1.0, 1.0, 1.0],
-                            rotation: [0.0, 0.0, 0.0],
+                            rotation: [0.0, f32::consts::PI / 2.0, 0.0],
                             translation: [x as f32 * 3.0, y as f32 * 3.0, z as f32 * 3.0],
                             ..Default::default()
                         },

@@ -49,29 +49,6 @@ struct Sphere {
   }
 }
 
-// #[repr(C)]
-// #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
-// pub struct Transform {
-//     pub scale: [f32; 3],
-//     pub _pad0: [u32; 1],
-//     pub rotation: [f32; 3],
-//     pub _pad1: [u32; 1],
-//     pub translation: [f32; 3],
-//     pub _pad2: [u32; 1],
-// }
-
-// #[repr(C)]
-// #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
-// pub struct Instance {
-//     /// Each instance transforms that mesh
-//     pub transform: Transform,
-//     /// Each instance points at a mesh
-//     pub mesh: u32,
-//     /// Each instance has its own material
-//     pub material: u32,
-//     pub pad_0: [u32; 2], // to make the overall struct 16 byte aligned??
-// }
-
 struct Transform {
   float4 scale;
   float4 rotation;
@@ -146,7 +123,7 @@ void rayBVHIntersect(Ray ray, uint bvh_node, out float2 uv, out float t, out Hit
   let root = bvh_node;
   var current = bvh_node;
   t = float.maxValue;
-  h = Hit(float3(0.0),float3(0.0));
+  h = Hit(float3(0.0), float3(0.0));
   uv = float2(0.0);
   float t2;
   Hit h2;
@@ -188,21 +165,27 @@ float4x4 rotate(float3 factor) {
   let x = factor.x;
   let y = factor.y;
   let z = factor.z;
-  return float4x4(
-    float4(1.0,     0.0,     0.0,     0.0),
-    float4(0.0,     cos(x),  -sin(x), 0.0),
-    float4(0.0,     sin(x),  cos(x),  0.0),
-    float4(0.0,     0.0,     0.0,     1.0)
-  ) * float4x4(
-    float4(cos(y),  0.0,     sin(y),  0.0),
-    float4(0.0,     1.0,     0.0,     0.0),
-    float4(-sin(y), 0.0,     cos(y),  0.0),
-    float4(0.0,     0.0,     0.0,     1.0)
-  ) * float4x4(
-    float4(cos(z),  -sin(z), 0.0,     0.0),
-    float4(sin(z),  cos(z),  0.0,     0.0),
-    float4(0.0   ,  0.0,     1.0,     0.0),
-    float4(0.0   ,  0.0,     0.0,     1.0)
+  return mul(
+    float4x4(
+      float4(1.0,     0.0,     0.0,     0.0),
+      float4(0.0,     cos(x),  -sin(x), 0.0),
+      float4(0.0,     sin(x),  cos(x),  0.0),
+      float4(0.0,     0.0,     0.0,     1.0)
+    ),
+    mul(
+      float4x4(
+        float4(cos(y),  0.0,     sin(y),  0.0),
+        float4(0.0,     1.0,     0.0,     0.0),
+        float4(-sin(y), 0.0,     cos(y),  0.0),
+        float4(0.0,     0.0,     0.0,     1.0)
+      ),
+      float4x4(
+        float4(cos(z),  -sin(z), 0.0,     0.0),
+        float4(sin(z),  cos(z),  0.0,     0.0),
+        float4(0.0   ,  0.0,     1.0,     0.0),
+        float4(0.0   ,  0.0,     0.0,     1.0)
+      )
+    )
   );
 }
 
@@ -272,27 +255,22 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     Hit h2;
     float2 uv;
 
-    // float4x4 m = translate(instance.transform.translation.xyz)
-    //               * rotate(instance.transform.rotation.xyz)
-    //               * scale(instance.transform.scale.xyz);
-
-    // float4x4 mi = scale(1/instance.transform.scale.xyz)
-    //               * rotate(-instance.transform.rotation.xyz)
-    //               * translate(-instance.transform.translation.xyz);
     float4x4 m = mul(translate(instance.transform.translation.xyz),
-                 rotate(instance.transform.rotation.xyz));
-    float4x4 mi = mul(transpose(rotate(instance.transform.rotation.xyz)),
-                 translate(-instance.transform.translation.xyz));
+                 mul(rotate(instance.transform.rotation.xyz),
+                     scale(instance.transform.scale.xyz)));
+    float4x4 mi = mul(scale(1.0 / instance.transform.scale.xyz),
+                  mul(transpose(rotate(instance.transform.rotation.xyz)),
+                      translate(-instance.transform.translation.xyz)));
 
     path.ray.pos = (mul(mi, float4(path.ray.pos,1.0))).xyz;
     path.ray.dir = (mul(mi, float4(path.ray.dir,0.0))).xyz;
 
     rayBVHIntersect(path.ray, bid, uv, t2, h2);
 
-    path.ray.pos = (mul(m, float4(path.ray.pos,1.0))).xyz;
-    path.ray.dir = (mul(m, float4(path.ray.dir,0.0))).xyz;
-    h2.pos = (mul(m, float4(h2.pos,1.0))).xyz;
-    h2.norm= (mul(m, float4(h2.norm,0.0))).xyz;
+    path.ray.pos =           (mul(m, float4(path.ray.pos, 1.0))).xyz;
+    path.ray.dir =           (mul(m, float4(path.ray.dir, 0.0))).xyz;
+    h2.pos       =           (mul(m, float4(h2.pos,       1.0))).xyz;
+    h2.norm      = normalize((mul(m, float4(h2.norm,      0.0))).xyz);
 
     if (t2 >= 0 && t2 < t) {
       hits[index].mat = instance.material;
