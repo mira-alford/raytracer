@@ -4,6 +4,12 @@ import path;
 import ray;
 import queue;
 import hit;
+import math;
+
+struct AABB {
+  float4 lb;
+  float4 ub;
+}
 
 struct BVHNode {
   float4 lb;
@@ -102,7 +108,7 @@ void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h)
 }
 
 bool rayBoxIntersect(Ray ray, float3 lb, float3 ub, float tmax) {
-  var tmin = 0.0;
+  var tmin = float.minValue;
   let dir_inv = 1.0 / ray.dir;
 
   for (int d = 0; d < 3; d++) {
@@ -120,7 +126,7 @@ bool rayBoxIntersect(Ray ray, float3 lb, float3 ub, float tmax) {
   return tmin < tmax;
 }
 
-void rayBVHIntersect(Ray ray, uint bvh_node, float tmax, out float2 uv, out float t, out Hit h) {
+void rayBLASIntersect(Ray ray, uint bvh_node, float tmax, out float2 uv, out float t, out Hit h) {
   let root = bvh_node;
   var current = bvh_node;
   t = tmax;
@@ -130,10 +136,10 @@ void rayBVHIntersect(Ray ray, uint bvh_node, float tmax, out float2 uv, out floa
   Hit h2;
   float2 uv2;
   do {
-    let node = bvh_nodes[current];
+    let node = blas_nodes[current];
 
     let hit = rayBoxIntersect(ray, node.lb.xyz, node.ub.xyz, t);
-    current = select(!hit, node.right, node.left);
+    current = select(!hit || node.is_leaf == 1, node.right, node.left);
     if (!hit || node.is_leaf == 0) {
       continue;
     }
@@ -149,54 +155,59 @@ void rayBVHIntersect(Ray ray, uint bvh_node, float tmax, out float2 uv, out floa
         uv = uv2;
       }
     }
-    current = node.right;
+
   } while (root != current);
 }
 
-float4x4 scale(float3 factor) {
-  return float4x4(
-    float4(factor.x,0.0,0.0,0.0),
-    float4(0.0,factor.y,0.0,0.0),
-    float4(0.0,0.0,factor.z,0.0),
-    float4(0.0,0.0,0.0,     1.0)
-  );
-}
+void rayTLASIntersect(Ray ray, inout float2 uv, inout float t, inout Hit h, inout uint mat, inout uint mat_data) {
+  let root = 0;
+  var current = 0;
 
-float4x4 rotate(float3 factor) {
-  let x = factor.x;
-  let y = factor.y;
-  let z = factor.z;
-  return mul(
-    float4x4(
-      float4(1.0,     0.0,     0.0,     0.0),
-      float4(0.0,     cos(x),  -sin(x), 0.0),
-      float4(0.0,     sin(x),  cos(x),  0.0),
-      float4(0.0,     0.0,     0.0,     1.0)
-    ),
-    mul(
-      float4x4(
-        float4(cos(y),  0.0,     sin(y),  0.0),
-        float4(0.0,     1.0,     0.0,     0.0),
-        float4(-sin(y), 0.0,     cos(y),  0.0),
-        float4(0.0,     0.0,     0.0,     1.0)
-      ),
-      float4x4(
-        float4(cos(z),  -sin(z), 0.0,     0.0),
-        float4(sin(z),  cos(z),  0.0,     0.0),
-        float4(0.0   ,  0.0,     1.0,     0.0),
-        float4(0.0   ,  0.0,     0.0,     1.0)
-      )
-    )
-  );
-}
+  do {
+    let node = tlas_nodes[current];
 
-float4x4 translate(float3 factor) {
-  return float4x4(
-    float4(1.0,0.0,0.0,factor.x),
-    float4(0.0,1.0,0.0,factor.y),
-    float4(0.0,0.0,1.0,factor.z),
-    float4(0.0,0.0,0.0,1.0)
-  );
+    let hit = rayBoxIntersect(ray, node.lb.xyz, node.ub.xyz, t);
+    current = select(!hit || node.is_leaf == 1, node.right, node.left);
+    if (!hit || node.is_leaf == 0) {
+      continue;
+    }
+
+    for (int p = node.start; p < node.end; p++) {
+      float t2;
+      Hit h2;
+      float2 uv2;
+
+      Instance instance = instances[tlas_instance_ids[p]];
+      uint bid = blas_roots[instance.mesh];
+
+      float4x4 m = mul(translate(instance.transform.translation.xyz),
+                   mul(rotate(instance.transform.rotation.xyz),
+                       scale(instance.transform.scale.xyz)));
+      float4x4 mi = mul(scale(1.0 / instance.transform.scale.xyz),
+                    mul(transpose(rotate(instance.transform.rotation.xyz)),
+                        translate(-instance.transform.translation.xyz)));
+
+      Ray r = ray;
+      r.dir = normalize(r.dir);
+      r.pos = (mul(mi, float4(r.pos, 1.0))).xyz;
+      r.dir = (mul(mi, float4(r.dir, 0.0))).xyz;
+
+      rayBLASIntersect(r, bid, t, uv2, t2, h2);
+
+      h2.pos  =           (mul(m, float4(h2.pos,  1.0))).xyz;
+      h2.norm = normalize((mul(m, float4(h2.norm, 0.0))).xyz);
+
+      // t2 = length(h2.pos - ray.pos) / length(ray.dir);
+
+      if (t2 >= 0 && t2 < t) {
+        mat = instance.material;
+        mat_data = instance.material_data;
+        uv = uv2;
+        t = t2;
+        h = h2;
+      }
+    }
+  } while (root != current);
 }
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
@@ -207,13 +218,17 @@ float4x4 translate(float3 factor) {
 
 [[vk::binding(0,2)]] StructuredBuffer<Sphere> primitives;
 
-[[vk::binding(0,3)]] StructuredBuffer<BVHNode> bvh_nodes;
+[[vk::binding(0,3)]] StructuredBuffer<BVHNode> blas_nodes;
 [[vk::binding(1,3)]] StructuredBuffer<float3> tri_positions;
 [[vk::binding(2,3)]] StructuredBuffer<uint3> tri_faces;
 [[vk::binding(3,3)]] StructuredBuffer<float3> tri_normals;
-[[vk::binding(4,3)]] StructuredBuffer<uint> bvh_roots;
+[[vk::binding(4,3)]] StructuredBuffer<uint> blas_roots;
 
 [[vk::binding(0,4)]] StructuredBuffer<Instance> instances;
+
+[[vk::binding(0,5)]] StructuredBuffer<BVHNode> tlas_nodes;
+[[vk::binding(1,5)]] StructuredBuffer<uint> tlas_instance_ids;
+[[vk::binding(2,5)]] StructuredBuffer<AABB> tlas_aabbs;
 
 [shader("compute")]
 [numthreads(1,1,1)]
@@ -236,6 +251,8 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
 
   float t = float.maxValue;
   Hit h;
+
+  // Sphere intersects, temporary TODO: replace with poly based spheres or something
   for (uint pid = 0; pid < primitives.getCount(); pid++) {
     float t2;
     Hit h2;
@@ -249,40 +266,17 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
       h = h2;
     }
   }
-
-  for (uint iid = 0; iid < instances.getCount(); iid++) {
-    Instance instance = instances[iid];  
-    uint bid = bvh_roots[instance.mesh];
-    float t2;
-    Hit h2;
-    float2 uv;
-
-    // TODO optimise this by precomputing the matrices please
-    float4x4 m = mul(translate(instance.transform.translation.xyz),
-                 mul(rotate(instance.transform.rotation.xyz),
-                     scale(instance.transform.scale.xyz)));
-    float4x4 mi = mul(scale(1.0 / instance.transform.scale.xyz),
-                  mul(transpose(rotate(instance.transform.rotation.xyz)),
-                      translate(-instance.transform.translation.xyz)));
-
-    path.ray.pos = (mul(mi, float4(path.ray.pos,1.0))).xyz;
-    path.ray.dir = (mul(mi, float4(path.ray.dir,0.0))).xyz;
-
-    rayBVHIntersect(path.ray, bid, t, uv, t2, h2);
-
-    path.ray.pos =           (mul(m, float4(path.ray.pos, 1.0))).xyz;
-    path.ray.dir =           (mul(m, float4(path.ray.dir, 0.0))).xyz;
-    h2.pos       =           (mul(m, float4(h2.pos,       1.0))).xyz;
-    h2.norm      = normalize((mul(m, float4(h2.norm,      0.0))).xyz);
-
-    if (t2 >= 0 && t2 < t) {
-      hits[index].mat = instance.material;
-      hits[index].mat_data = instance.material_data;
-      t = t2;
-      h = h2;
-    }
-  }
-
+ 
+  // BLAS Intersects
+  float2 uv;
+  rayTLASIntersect(
+    path.ray,
+    uv,
+    t,
+    h,
+    hits[index].mat,
+    hits[index].mat_data,
+  );
 
   if (t < float.maxValue) {
     hits[index].hit = h;

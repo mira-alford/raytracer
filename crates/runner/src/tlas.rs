@@ -1,7 +1,9 @@
+use glam::Mat4;
 use glam::UVec3;
 use glam::Vec3;
 use glam::Vec4Swizzles;
 use itertools::Itertools;
+use itertools::repeat_n;
 use wgpu::util::DeviceExt;
 
 use crate::blas::BLAS;
@@ -18,8 +20,8 @@ use crate::mesh::Mesh;
 #[derive(Debug)]
 pub struct TLAS {
     pub nodes: Vec<BVHNode>,
-    pub blas: Vec<usize>, // Which blas this points at
-    pub aabbs: Vec<AABB>, // Its AABB (transformed)
+    pub instance_ids: Vec<usize>,
+    pub aabbs: Vec<AABB>,
 }
 
 impl BVH for TLAS {
@@ -33,7 +35,7 @@ impl BVH for TLAS {
 
     fn elem_swap(&mut self, elem: usize, elem2: usize) {
         self.aabbs.swap(elem, elem2);
-        self.blas.swap(elem, elem2);
+        self.instance_ids.swap(elem, elem2);
     }
 
     fn node(&self, idx: usize) -> &BVHNode {
@@ -61,21 +63,35 @@ impl TLAS {
             .iter()
             .map(|i| {
                 let aabb = blases[i.mesh as usize].node_bounds(0);
-                let translate = glam::Mat4::from_translation(i.transform.translation);
-                let rotate = glam::Mat4::from_rotation_x(i.transform.rotation.x).mul_mat4(
-                    &glam::Mat4::from_rotation_y(i.transform.rotation.y)
-                        .mul_mat4(&glam::Mat4::from_rotation_z(i.transform.rotation.z)),
+                let corners = repeat_n((0..=1).into_iter(), 3)
+                    .multi_cartesian_product()
+                    .map(|p| {
+                        let [x, y, z] = p.try_into().unwrap();
+                        Vec3::new(
+                            if x == 0 { aabb.lb.x } else { aabb.ub.x },
+                            if y == 0 { aabb.lb.y } else { aabb.ub.y },
+                            if z == 0 { aabb.lb.z } else { aabb.ub.z },
+                        )
+                    })
+                    .collect_vec();
+
+                let translate = Mat4::from_translation(i.transform.translation);
+
+                let rotate = Mat4::from_rotation_x(i.transform.rotation.x).mul_mat4(
+                    &Mat4::from_rotation_y(i.transform.rotation.y)
+                        .mul_mat4(&Mat4::from_rotation_z(i.transform.rotation.z)),
                 );
-                let scale = glam::Mat4::from_scale(i.transform.scale);
+
+                let scale = Mat4::from_scale(i.transform.scale);
+
                 let m = translate.mul_mat4(&rotate.mul_mat4(&scale));
-                let aabb = AABB {
-                    lb: m.mul_vec4(aabb.lb.extend(0.0)).xyz(),
-                    ub: m.mul_vec4(aabb.ub.extend(0.0)).xyz(),
-                };
-                let aabb = AABB {
-                    lb: aabb.lb.min(aabb.ub),
-                    ub: aabb.lb.max(aabb.ub),
-                };
+
+                let aabb = corners
+                    .iter()
+                    .map(|c| m.mul_vec4(c.extend(1.0)).xyz())
+                    .map(|c| AABB { lb: c, ub: c })
+                    .reduce(|acc, aabb| acc.union(&aabb))
+                    .unwrap();
                 aabb
             })
             .collect_vec();
@@ -88,11 +104,11 @@ impl TLAS {
                 end: instances.len(),
                 ..Default::default()
             }],
-            blas: instances.iter().map(|i| i.mesh as usize).collect(),
+            instance_ids: (0..instances.len() as usize).collect(),
             aabbs,
         };
 
-        bvh.initialize();
+        bvh.initialize(2);
 
         bvh
     }
@@ -118,9 +134,9 @@ impl TLASData {
             usage: wgpu::BufferUsages::STORAGE,
         });
 
-        let blas_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("BLAS buffer"),
-            contents: bytemuck::cast_slice(&tlas.blas),
+        let instance_id_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Instance ID buffer"),
+            contents: bytemuck::cast_slice(&tlas.instance_ids),
             usage: wgpu::BufferUsages::STORAGE,
         });
 
@@ -182,7 +198,7 @@ impl TLASData {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: blas_buffer.as_entire_binding(),
+                    resource: instance_id_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,

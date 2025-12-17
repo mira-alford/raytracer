@@ -5,7 +5,7 @@ use crate::{
     blas::{self, BLASData},
     instance::{Instance, Instances},
     mesh::Meshes,
-    path, queue,
+    path, queue, tlas,
 };
 
 #[repr(C)]
@@ -28,7 +28,8 @@ impl ExtensionPhase {
         device: &wgpu::Device,
         paths: &path::Paths,
         extension_queue: &queue::Queue,
-        meshes: &blas::BLASData,
+        blas_data: &blas::BLASData,
+        tlas_data: &tlas::TLASData,
         primitives: &[Sphere],
         instances: &Instances,
     ) -> Self {
@@ -72,8 +73,9 @@ impl ExtensionPhase {
                 &paths.path_bind_group_layout,
                 &extension_queue.bind_group_layout,
                 &primitives_bindgroup_layout,
-                &meshes.bindgroup_layout,
+                &blas_data.bindgroup_layout,
                 &instances.bindgroup_layout,
+                &tlas_data.bindgroup_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -110,7 +112,8 @@ impl ExtensionPhase {
         device: &wgpu::Device,
         path_buffer: &path::Paths,
         extension_queue: &queue::Queue,
-        meshes: &blas::BLASData,
+        blas_data: &blas::BLASData,
+        tlas_data: &tlas::TLASData,
         instances: &Instances,
     ) -> wgpu::CommandBuffer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -122,8 +125,9 @@ impl ExtensionPhase {
         compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
         compute_pass.set_bind_group(1, &extension_queue.bind_group, &[]);
         compute_pass.set_bind_group(2, &self.primitives_bindgroup, &[]);
-        compute_pass.set_bind_group(3, &meshes.bindgroup, &[]);
+        compute_pass.set_bind_group(3, &blas_data.bindgroup, &[]);
         compute_pass.set_bind_group(4, &instances.bindgroup, &[]);
+        compute_pass.set_bind_group(5, &tlas_data.bindgroup, &[]);
         compute_pass.dispatch_workgroups(extension_queue.size.div_ceil(64), 1, 1);
 
         // Reset extension queue after done:
@@ -131,8 +135,9 @@ impl ExtensionPhase {
         compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
         compute_pass.set_bind_group(1, &extension_queue.bind_group, &[]);
         compute_pass.set_bind_group(2, &self.primitives_bindgroup, &[]);
-        compute_pass.set_bind_group(3, &meshes.bindgroup, &[]);
+        compute_pass.set_bind_group(3, &blas_data.bindgroup, &[]);
         compute_pass.set_bind_group(4, &instances.bindgroup, &[]);
+        compute_pass.set_bind_group(5, &tlas_data.bindgroup, &[]);
         compute_pass.dispatch_workgroups(1, 1, 1);
 
         drop(compute_pass);

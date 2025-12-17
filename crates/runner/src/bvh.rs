@@ -11,7 +11,7 @@ pub struct AABB {
 }
 
 impl AABB {
-    fn union(&self, other: &AABB) -> AABB {
+    pub fn union(&self, other: &AABB) -> AABB {
         AABB {
             lb: self.lb.min(other.lb),
             ub: self.ub.max(other.ub),
@@ -144,44 +144,24 @@ pub trait BVH {
         self.compute_node_bounds(idx);
     }
 
-    fn generate_skips(&mut self, parent_idx: usize, idx: usize) {
-        let BVHNode {
-            bounds,
-            left,
-            right,
-            is_leaf,
-            start,
-            end,
-            skip,
-        } = *self.node(idx);
+    fn generate_skips(&mut self, idx: usize, next: usize) {
+        let node = *self.node(idx);
 
-        let BVHNode { right: p_right, .. } = *self.node(parent_idx);
-
-        // Left child
-        if !is_leaf {
-            self.generate_skips(idx, left);
+        {
+            let mut n = node;
+            n.skip = next;
+            *self.node_mut(idx) = n;
         }
 
-        // Self:
-        *self.node_mut(idx) = BVHNode {
-            bounds,
-            left,
-            right: if idx == 0 { 0 } else { p_right },
-            start,
-            end,
-            is_leaf,
-            skip,
-        };
-
-        // Right child:
-        if !is_leaf {
-            self.generate_skips(idx, right);
+        if !node.is_leaf {
+            self.generate_skips(node.left, node.right);
+            self.generate_skips(node.right, next);
         }
     }
 
-    fn initialize(&mut self) {
+    fn initialize(&mut self, threshold: usize) {
         self.compute_node_bounds(0);
-        self.subdivide(0, 32);
+        self.subdivide(0, threshold);
         self.generate_skips(0, 0);
     }
 }
@@ -222,7 +202,7 @@ impl From<BVHNode> for BVHNodeGPU {
         BVHNodeGPU {
             aabb: AABBGPU::from(value.bounds),
             left: value.left as u32,
-            right: value.right as u32,
+            right: value.skip as u32,
             is_leaf: value.is_leaf as u32,
             start: value.start as u32,
             end: value.end as u32,

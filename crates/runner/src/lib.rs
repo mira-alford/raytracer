@@ -61,6 +61,7 @@ pub struct State {
     extension_phase: extension::ExtensionPhase,
     instances: Instances,
     blas_data: blas::BLASData,
+    tlas_data: tlas::TLASData,
     camera: camera::Camera,
     window: Arc<Window>,
     dims: Dims,
@@ -215,6 +216,7 @@ impl State {
         let tlas = tlas::TLAS::new(&blases, &instances.instances);
 
         let blas_data = blas::BLASData::new(&device, blases);
+        let tlas_data = tlas::TLASData::new(&device, tlas);
 
         // Make a bunch of queues:
         let paths = path::Paths::new(&device, dims.dims);
@@ -280,6 +282,7 @@ impl State {
             &paths,
             &extension_queue,
             &blas_data,
+            &tlas_data,
             spheres.as_slice(),
             &instances,
         );
@@ -307,6 +310,7 @@ impl State {
             dims,
             keys_pressed: HashSet::new(),
             blas_data,
+            tlas_data,
         })
     }
 
@@ -419,6 +423,7 @@ impl State {
             &self.paths,
             &self.extension_queue,
             &self.blas_data,
+            &self.tlas_data,
             &self.instances,
         );
 

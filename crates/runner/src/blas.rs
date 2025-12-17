@@ -82,7 +82,7 @@ impl BLAS {
                 .collect(),
         };
 
-        bvh.initialize();
+        bvh.initialize(32);
 
         bvh
     }
