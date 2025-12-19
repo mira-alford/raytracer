@@ -12,7 +12,7 @@ public struct MetallicData {
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
 [[vk::binding(1,0)]] RWStructuredBuffer<uint4> random_states;
-[[vk::binding(3,0)]] RWStructuredBuffer<HitData> hits;
+[[vk::binding(2,0)]] RWStructuredBuffer<HitData> hits;
 
 [[vk::binding(0,1)]] RWStructuredBuffer<QueueHeader> qh_material;
 [[vk::binding(1,1)]] RWStructuredBuffer<uint> qd_material;

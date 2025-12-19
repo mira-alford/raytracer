@@ -13,6 +13,7 @@ mod new_ray;
 mod path;
 mod queue;
 mod render;
+mod sample;
 mod texture;
 mod tlas;
 
@@ -40,6 +41,7 @@ use crate::{
     lambertian::LambertianData,
     mesh::Meshes,
     metallic::MetallicData,
+    sample::Samples,
 };
 
 pub struct State {
@@ -49,6 +51,7 @@ pub struct State {
     config: wgpu::SurfaceConfiguration,
     is_surface_configured: bool,
     paths: path::Paths,
+    samples: sample::Samples,
     new_ray_queue: queue::Queue,
     lambertian_queue: queue::Queue,
     metallic_queue: queue::Queue,
@@ -94,8 +97,9 @@ impl State {
             .await?;
 
         let mut limits = wgpu::Limits::defaults();
-        limits.max_bind_groups = 6;
-        // limits.max_storage_buffer_binding_size = 184549552;
+        limits.max_bind_groups = 8;
+        limits.max_storage_buffer_binding_size = 402653184;
+        limits.max_buffer_size = 402653184;
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
@@ -126,7 +130,7 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
-        let dims = Dims::new(&device, (512, 512));
+        let dims = Dims::new(&device, (4096, 4096), 512 * 512);
 
         // Load models:
         let mut load_options = tobj::GPU_LOAD_OPTIONS;
@@ -217,17 +221,22 @@ impl State {
         let tlas_data = tlas::TLASData::new(&device, tlas);
 
         // Make a bunch of queues:
-        let paths = path::Paths::new(&device, dims.dims);
-        let new_ray_queue = queue::Queue::new(&device, dims.size(), Some("NewRayPhase"));
-        let extension_queue = queue::Queue::new(&device, dims.size(), Some("ExtensionPhase"));
-        let lambertian_queue = queue::Queue::new(&device, dims.size(), Some("LambertianQueue"));
-        let metallic_queue = queue::Queue::new(&device, dims.size(), Some("MetallicQueue"));
+        let paths = path::Paths::new(&device, &dims);
+        let new_ray_queue = queue::Queue::new(&device, dims.threads, Some("NewRayPhase"));
+        let extension_queue = queue::Queue::new(&device, dims.threads, Some("ExtensionPhase"));
+        let lambertian_queue = queue::Queue::new(&device, dims.threads, Some("LambertianQueue"));
+        let metallic_queue = queue::Queue::new(&device, dims.threads, Some("MetallicQueue"));
         let camera = camera::Camera::new(&device, Some("MainCamera"));
+
+        // Sample States
+        let samples = Samples::new(&device, dims.dims);
 
         let render_phase = render::RenderPhase::new(&device, &config, dims.dims);
         let logic_phase = logic::LogicPhase::new(
             &device,
             &paths,
+            &samples,
+            &camera,
             &new_ray_queue,
             &[&lambertian_queue, &metallic_queue],
             &dims,
@@ -235,6 +244,7 @@ impl State {
         let new_ray_phase = new_ray::NewRayPhase::new(
             &device,
             &paths,
+            &samples,
             &new_ray_queue,
             &extension_queue,
             &camera,
@@ -294,6 +304,7 @@ impl State {
             window,
             logic_phase,
             render_phase,
+            samples,
             new_ray_phase,
             lambertian_phase,
             metallic_phase,
@@ -392,6 +403,8 @@ impl State {
         let logic_commands = self.logic_phase.render(
             &self.device,
             &self.paths,
+            &self.samples,
+            &self.camera,
             &self.new_ray_queue,
             &[&self.lambertian_queue, &self.metallic_queue],
             &self.dims,
@@ -399,6 +412,7 @@ impl State {
         let new_ray_commands = self.new_ray_phase.render(
             &self.device,
             &self.paths,
+            &self.samples,
             &self.new_ray_queue,
             &self.extension_queue,
             &self.camera,

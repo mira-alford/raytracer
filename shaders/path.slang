@@ -7,10 +7,10 @@ public struct Path {
   public Ray ray; // 0..=32
   public float3 rad; // 33..=48
   public float3 throughput; // 49..=64
-  public float2 screen_pos; // 
   public uint terminated;
-  public uint generated;
+  public uint sampled;
   public uint bounces;
+  public uint sample_id;
 };
 
 public struct HitData {
@@ -21,10 +21,4 @@ public struct HitData {
   public Hit hit;
   public uint mat;
   public uint mat_data;
-}
-
-public struct SampleState {
-  public float3 sampled_rad;
-  public float3 sampled_pos;
-  public uint samples;
 }

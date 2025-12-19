@@ -2,10 +2,11 @@ module logic;
 
 import path;
 import queue;
+import sample;
+import camera;
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
-[[vk::binding(2,0)]] RWStructuredBuffer<SampleState> sample_states;
-[[vk::binding(3,0)]] RWStructuredBuffer<HitData> hits;
+[[vk::binding(2,0)]] RWStructuredBuffer<HitData> hits;
 
 [[vk::binding(0,1)]] RWStructuredBuffer<QueueHeader> qh_new_ray;
 [[vk::binding(1,1)]] RWStructuredBuffer<uint> qd_new_ray;
@@ -14,11 +15,18 @@ import queue;
 
 [[vk::binding(0,3)]] ConstantBuffer<uint2> dims;
 
-[[vk::binding(0,4)]] RWStructuredBuffer<QueueHeader> qh_lambertian;
-[[vk::binding(1,4)]] RWStructuredBuffer<uint> qd_lambertian;
+[[vk::binding(0,4)]] RWStructuredBuffer<uint> sample_index;
+[[vk::binding(1,4)]] RWStructuredBuffer<SampleData> sample_data;
+[[vk::binding(2,4)]] RWStructuredBuffer<float4> sample_mean;
+[[vk::binding(3,4)]] RWStructuredBuffer<float4> sample_std;
 
-[[vk::binding(0,5)]] RWStructuredBuffer<QueueHeader> qh_metallic;
-[[vk::binding(1,5)]] RWStructuredBuffer<uint> qd_metallic;
+[[vk::binding(0,5)]] ConstantBuffer<Camera> camera;
+
+[[vk::binding(0,6)]] RWStructuredBuffer<QueueHeader> qh_lambertian;
+[[vk::binding(1,6)]] RWStructuredBuffer<uint> qd_lambertian;
+
+[[vk::binding(0,7)]] RWStructuredBuffer<QueueHeader> qh_metallic;
+[[vk::binding(1,7)]] RWStructuredBuffer<uint> qd_metallic;
 
 [shader("compute")]
 [numthreads(1,1,1)]
@@ -46,37 +54,50 @@ void maintainActiveSamples(uint3 threadId : SV_DispatchThreadID) {
 }
 
 [shader("compute")]
-[numthreads(16,16,1)]
+[numthreads(64,1,1)]
 void logicMain(uint3 threadId : SV_DispatchThreadID) {
-  if (threadId.x > dims.x || threadId.y > dims.y) {
+  if (threadId.x > paths.getCount()) {
     return;
   }
-  uint32_t idx = threadId.x + threadId.y * dims.x;
 
-  let path = &paths[idx];
-  let sample_state = &sample_states[idx];
-  let hit = &hits[idx];
+  let path = &paths[threadId.x];
+  let hit = &hits[threadId.x];
 
-  if (path.generated == 0) {
-    // Path has never been generated
-    // Set the pos:
-    path.screen_pos = float2(threadId.xy) / float2(dims.x, dims.y);
+  if (path.sampled == 0) {
+    // Path has not been sampled
+    // Pull a sample from the pool:
+    uint sample_id;
+    InterlockedAdd(sample_index[0], 1, sample_id);
+    sample_id %= sample_data.getCount();
+    let sample_data = sample_data[sample_id];
+
+    // Generate the path starting conditions:
     path.bounces = 8;
-    path.terminated = 0;
     path.throughput = float3(1.0);
     path.rad = float3(0.0);
-
-    // Push to the queue:
-    queuePush(qh_new_ray, qd_new_ray, idx);
-    path.generated = 1;
+    path.sampled = 1;
+    path.terminated = 0;
+    path.sample_id = sample_id;
+    queuePush(qh_new_ray, qd_new_ray, threadId.x);
   } else if (path.terminated == 1) {
-    // Path is terminated, add radiance to the buffer
-    // output[idx] = pack_rgb(path.rad.xyz);
-    sample_state.samples += 1;
-    // path.samples = min(path.samples,20);
-    sample_state.sampled_rad = sample_state.sampled_rad * (float(sample_state.samples-1) / float(sample_state.samples)) + path.rad  / float(sample_state.samples);
-    output[idx] = pack_rgb(sample_state.sampled_rad.xyz);
-    path.generated = 0;
+    // Path is terminated, update the sample data:
+    sample_data[path.sample_id].samples += 1;
+    let samples = sample_data[path.sample_id].samples;
+    if (camera.changed != 0) {
+      sample_data[path.sample_id].samples = min(samples, 1);
+    }
+
+    sample_mean[path.sample_id].xyz = sample_mean[path.sample_id].xyz
+      * (float(samples-1) / float(samples))
+      + path.rad / float(samples);
+
+    // Write the sampled radiance to the output buffer:
+    let out_pos = sample_data[path.sample_id].out_pos;
+    let out_idx = out_pos.x + out_pos.y * dims.x;
+    output[out_idx] = pack_rgb(sample_mean[path.sample_id].xyz);
+
+    // Re-mark the path to be sampled:
+    path.sampled = 0;
   } else {
     // Path is not yet terminated this is where we would give it to the material it hit
     // but for now im just putting it straight back on the extension queue.

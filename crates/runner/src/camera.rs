@@ -11,7 +11,8 @@ pub struct CameraData {
     pub _pad2: u32,
     pub dims: [f32; 2],
     pub focal_length: f32,
-    pub _pad3: [u32; 2],
+    pub changed: u32,
+    pub _pad3: [u32; 1],
 }
 
 impl CameraData {
@@ -81,6 +82,7 @@ impl Camera {
         if self.changed {
             queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&self.data));
             queue.submit([]);
+            self.data.changed = 0;
         }
     }
 
@@ -96,6 +98,7 @@ impl Camera {
         pos += dir.z * f;
 
         self.data.position = pos.to_array();
+        self.data.changed = 1;
         self.changed = true;
     }
 
@@ -119,6 +122,7 @@ impl Camera {
         self.data.forward = f.into();
         self.data.up = u.into();
 
+        self.data.changed = 1;
         self.changed = true;
     }
 }

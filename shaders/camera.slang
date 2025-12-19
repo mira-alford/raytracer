@@ -6,4 +6,5 @@ public struct Camera {
   public float3 up;
   public float2 dims;
   public float focal_length;
+  public uint changed;
 }

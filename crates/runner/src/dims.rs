@@ -2,6 +2,7 @@ use wgpu::util::DeviceExt;
 
 pub struct Dims {
     pub dims: (u32, u32),
+    pub threads: u32,
     pub buffer: wgpu::Buffer,
     pub bindgroup: wgpu::BindGroup,
     pub bindgroup_layout: wgpu::BindGroupLayout,
@@ -12,7 +13,7 @@ impl Dims {
         self.dims.0 * self.dims.1
     }
 
-    pub fn new(device: &wgpu::Device, dims: (u32, u32)) -> Self {
+    pub fn new(device: &wgpu::Device, dims: (u32, u32), threads: u32) -> Self {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Dims Buffer"),
             contents: bytemuck::cast_slice(&[dims.0, dims.1]),
@@ -44,6 +45,7 @@ impl Dims {
 
         Self {
             dims,
+            threads,
             buffer,
             bindgroup,
             bindgroup_layout,

@@ -2,6 +2,8 @@ use bytemuck::Zeroable;
 use rand::Rng;
 use wgpu::util::DeviceExt;
 
+use crate::dims::Dims;
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Zeroable, bytemuck::Pod)]
 pub struct Hit {
@@ -27,12 +29,11 @@ pub struct Path {
     pub radiance: [f32; 3],
     pub _pad2: u32, // pad to 16 byte boundary
     pub throughput: [f32; 3],
-    pub _pad3: u32,           // pad to 16 byte boundary
-    pub screen_pos: [f32; 2], // Vec2<f32> aligns to 8 bytes... this caused so much pain
+    pub _pad3: u32, // pad to 16 byte boundary
     pub terminated: u32,
-    pub generated: u32,
+    pub sampled: u32,
     pub bounces: u32,
-    pub _pad6: [u32; 3], // pad to 16 byte boundary
+    pub sample_id: u32,
 }
 
 #[repr(C)]
@@ -62,28 +63,18 @@ pub struct RandomState {
 pub struct Paths {
     pub path_buffer: wgpu::Buffer,
     pub random_state_buffer: wgpu::Buffer,
-    pub sample_state_buffer: wgpu::Buffer,
+    // pub sample_state_buffer: wgpu::Buffer,
     pub hit_data_buffer: wgpu::Buffer,
     pub path_bind_group_layout: wgpu::BindGroupLayout,
     pub path_bind_group: wgpu::BindGroup,
 }
 
 impl Paths {
-    pub fn new(device: &wgpu::Device, dims: (u32, u32)) -> Self {
+    pub fn new(device: &wgpu::Device, dims: &Dims) -> Self {
         let mut rng = rand::rng();
-        let paths: Vec<_> = (0..=(dims.0 * dims.1))
-            .map(|_| {
-                let mut path = Path::zeroed();
-                path
-            })
-            .collect();
+        let paths: Vec<_> = (0..=(dims.threads)).map(|_| Path::zeroed()).collect();
 
-        // println!("samplingstate: {}", std::mem::size_of::<SamplingState>());
-        // println!("hitdata: {}", std::mem::size_of::<HitData>());
-        // println!("path: {}", std::mem::size_of::<Path>());
-        // panic!();
-
-        let random_states: Vec<_> = (0..=(dims.0 * dims.1))
+        let random_states: Vec<_> = (0..=(dims.threads))
             .map(|_| RandomState {
                 random_state: [
                     rng.random_range(1000..=u32::MAX),
@@ -106,16 +97,9 @@ impl Paths {
             contents: bytemuck::cast_slice(&random_states),
         });
 
-        let sample_state_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("sample_state Buffer"),
-            size: ((dims.0 * dims.1) as u64 * std::mem::size_of::<SamplingState>() as u64),
-            usage: wgpu::BufferUsages::STORAGE,
-            mapped_at_creation: false,
-        });
-
         let hit_data_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("hit_data Buffer"),
-            size: ((dims.0 * dims.1) as u64 * std::mem::size_of::<HitData>() as u64),
+            size: ((dims.threads) as u64 * std::mem::size_of::<HitData>() as u64),
             usage: wgpu::BufferUsages::STORAGE,
             mapped_at_creation: false,
         });
@@ -154,16 +138,6 @@ impl Paths {
                         },
                         count: None,
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
                 ],
             });
 
@@ -181,10 +155,6 @@ impl Paths {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: sample_state_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
                     resource: hit_data_buffer.as_entire_binding(),
                 },
             ],
@@ -193,7 +163,7 @@ impl Paths {
         Self {
             path_buffer,
             random_state_buffer,
-            sample_state_buffer,
+            // sample_state_buffer,
             hit_data_buffer,
             path_bind_group_layout,
             path_bind_group,

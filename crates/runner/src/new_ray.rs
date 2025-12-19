@@ -4,7 +4,7 @@ use wgpu::{include_spirv, util::DeviceExt};
 use crate::{
     camera::{self, CameraData},
     dims::Dims,
-    path, queue,
+    path, queue, sample,
 };
 
 pub struct NewRayPhase {
@@ -15,6 +15,7 @@ impl NewRayPhase {
     pub fn new(
         device: &wgpu::Device,
         path_buffer: &path::Paths,
+        sample_buffer: &sample::Samples,
         new_ray_queue: &queue::Queue,
         extension_queue: &queue::Queue,
         camera: &camera::Camera,
@@ -31,6 +32,7 @@ impl NewRayPhase {
                 &extension_queue.bind_group_layout,
                 &camera.bind_group_layout,
                 &dims.bindgroup_layout,
+                &sample_buffer.bind_group_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -51,6 +53,7 @@ impl NewRayPhase {
         &self,
         device: &wgpu::Device,
         path_buffer: &path::Paths,
+        samples: &sample::Samples,
         new_ray_queue: &queue::Queue,
         extension_queue: &queue::Queue,
         camera: &camera::Camera,
@@ -67,6 +70,7 @@ impl NewRayPhase {
         compute_pass.set_bind_group(2, &extension_queue.bind_group, &[]);
         compute_pass.set_bind_group(3, &camera.bind_group, &[]);
         compute_pass.set_bind_group(4, &dims.bindgroup, &[]);
+        compute_pass.set_bind_group(5, &samples.bind_group, &[]);
         compute_pass.dispatch_workgroups(new_ray_queue.size.div_ceil(64), 1, 1);
 
         drop(compute_pass);
