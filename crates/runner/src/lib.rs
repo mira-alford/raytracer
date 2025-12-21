@@ -134,7 +134,7 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
-        let dims = Dims::new(&device, (256, 256), 1024 * 1024);
+        let dims = Dims::new(&device, (512, 512), 256 * 256);
 
         // Load models:
         let mut load_options = tobj::GPU_LOAD_OPTIONS;

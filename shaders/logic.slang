@@ -90,17 +90,13 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     }
 
     // Generate the path starting conditions:
-    path.bounces = 20000000;
+    path.bounces = 16;
     path.throughput = float3(1.0);
     path.rad = float3(0.0);
     path.sampled = 1;
     path.terminated = 0;
     path.sample_id = sample_id;
     queuePush(qh_new_ray, qd_new_ray, threadId.x);
-
-    let out_pos = sample_data.out_pos;
-    let out_idx = out_pos.x + out_pos.y * dims.x;
-    output[out_idx] = pack_rgb(float3(1.0,0.0,0.0));
   } else if (path.terminated == 1) {
     // Path is terminated, update the sample data:
     var samples = 0;
@@ -118,27 +114,12 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     let out_pos = sample_data[path.sample_id].out_pos;
     let out_idx = out_pos.x + out_pos.y * dims.x;
 
-    if (samples > 100) {
-      float3 rgb = float3(sample_mean.Load3(path.sample_id * sizeof(uint4))) / float(1000 * samples);
-      output[out_idx] = pack_rgb(rgb);
-    }
-    if (samples > 110) {
-      InterlockedExchange(sample_data[path.sample_id].flags, 1);
-    }
-    if (samples < 100) {
-      output[out_idx] = pack_rgb(float3(0.0,float(samples+10) / 110.0,0.0));
-    }
+    float3 rgb = float3(sample_mean.Load3(path.sample_id * sizeof(uint4))) / float(1000 * samples);
+    output[out_idx] = pack_rgb(rgb);
 
     // Re-mark the path to be sampled:
     path.sampled = 0;
   } else {
-    let out_pos = sample_data[path.sample_id].out_pos;
-    let out_idx = out_pos.x + out_pos.y * dims.x;
-    let samples = sample_data[path.sample_id].samples;
-    if (samples < 100) {
-      output[out_idx] = pack_rgb(float3(0.0,0.0,float(samples+10) / 110.0));
-    }
-
     // Path is not yet terminated this is where we would give it to the material it hit
     // but for now im just putting it straight back on the extension queue.
     switch (hit.mat) {
