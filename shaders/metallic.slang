@@ -23,7 +23,7 @@ public struct MetallicData {
 [[vk::binding(0,3)]] StructuredBuffer<MetallicData> lb_data;
 
 [shader("compute")]
-[numthreads(256,1,1)]
+[numthreads(64,1,1)]
 void newRayMain(uint3 threadId : SV_DispatchThreadID) {
   uint index;
   if (queueRead(qh_material, qd_material, index) == -1) {

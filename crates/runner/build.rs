@@ -24,7 +24,7 @@ fn build_slang(file: &str) {
     let output_json = out_dir.join(format!("{file}.json"));
 
     let output = std::process::Command::new("slangc")
-        .args(["-profile", "glsl_450"])
+        .args(["-profile", "glsl_460"])
         .arg(&shader)
         .arg("-o")
         .arg(&output_spv)

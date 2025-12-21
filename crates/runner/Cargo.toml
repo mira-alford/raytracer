@@ -22,7 +22,7 @@ tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 wesl = { workspace = true }
-wgpu = { workspace = true, features = ["spirv", "vulkan-portability"] }
+wgpu = { workspace = true, features = ["spirv", "vulkan", "vulkan-portability"] }
 winit = { workspace = true }
 
 [build-dependencies]

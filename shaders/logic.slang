@@ -17,7 +17,7 @@ import camera;
 
 [[vk::binding(0,4)]] RWStructuredBuffer<uint> sample_index;
 [[vk::binding(1,4)]] RWStructuredBuffer<SampleData> sample_data;
-[[vk::binding(2,4)]] RWStructuredBuffer<float4> sample_mean;
+[[vk::binding(2,4)]] RWByteAddressBuffer sample_mean;
 [[vk::binding(3,4)]] RWStructuredBuffer<float4> sample_std;
 
 [[vk::binding(0,5)]] ConstantBuffer<Camera> camera;
@@ -40,18 +40,31 @@ void logicStart(uint3 threadId : SV_DispatchThreadID) {
 }
 
 [shader("compute")]
-[numthreads(16,16,1)]
+[numthreads(256,1,1)]
 void maintainSamples(uint3 threadId : SV_DispatchThreadID) {
   // Cycles the samples buffer, swap-adding to the active
   // sample list where cycles need reactivation.
+  if (threadId.x > sample_data.getCount()) {
+    return;
+  }
+
+  if (camera.changed != 0) {
+    sample_data[threadId.x].samples = 1;
+    sample_data[threadId.x].flags = 0;
+    sample_mean.InterlockedExchange(threadId.x * sizeof(uint4) + 0 * sizeof(uint), 0);
+    sample_mean.InterlockedExchange(threadId.x * sizeof(uint4) + 1 * sizeof(uint), 0);
+    sample_mean.InterlockedExchange(threadId.x * sizeof(uint4) + 2 * sizeof(uint), 0);
+  }
 }
 
 [shader("compute")]
-[numthreads(16,16,1)]
+[numthreads(64,1,1)]
 void maintainActiveSamples(uint3 threadId : SV_DispatchThreadID) {
   // Pull of the sample completion queue and deactivates those samples
   // swap-removing from the active sample list.
 }
+
+groupshared uint m;
 
 [shader("compute")]
 [numthreads(64,1,1)]
@@ -70,41 +83,68 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     InterlockedAdd(sample_index[0], 1, sample_id);
     sample_id %= sample_data.getCount();
     let sample_data = sample_data[sample_id];
+    
+    if (sample_data.flags == 1) {
+      // Skip this sample, resample it next frame i guess lol
+      return;
+    }
 
     // Generate the path starting conditions:
-    path.bounces = 8;
+    path.bounces = 20000000;
     path.throughput = float3(1.0);
     path.rad = float3(0.0);
     path.sampled = 1;
     path.terminated = 0;
     path.sample_id = sample_id;
     queuePush(qh_new_ray, qd_new_ray, threadId.x);
+
+    let out_pos = sample_data.out_pos;
+    let out_idx = out_pos.x + out_pos.y * dims.x;
+    output[out_idx] = pack_rgb(float3(1.0,0.0,0.0));
   } else if (path.terminated == 1) {
     // Path is terminated, update the sample data:
-    sample_data[path.sample_id].samples += 1;
-    let samples = sample_data[path.sample_id].samples;
-    if (camera.changed != 0) {
-      sample_data[path.sample_id].samples = min(samples, 1);
-    }
+    var samples = 0;
+    InterlockedAdd(sample_data[path.sample_id].samples, 1, samples);
 
-    sample_mean[path.sample_id].xyz = sample_mean[path.sample_id].xyz
-      * (float(samples-1) / float(samples))
-      + path.rad / float(samples);
+    sample_mean.InterlockedAdd(path.sample_id * sizeof(uint4) + 0 * sizeof(uint),
+                                uint(path.rad.x * 1000.0));
+    sample_mean.InterlockedAdd(path.sample_id * sizeof(uint4) + 1 * sizeof(uint),
+                                uint(path.rad.y * 1000.0));
+    sample_mean.InterlockedAdd(path.sample_id * sizeof(uint4) + 2 * sizeof(uint),
+                                uint(path.rad.z * 1000.0));
+
 
     // Write the sampled radiance to the output buffer:
     let out_pos = sample_data[path.sample_id].out_pos;
     let out_idx = out_pos.x + out_pos.y * dims.x;
-    output[out_idx] = pack_rgb(sample_mean[path.sample_id].xyz);
+
+    if (samples > 100) {
+      float3 rgb = float3(sample_mean.Load3(path.sample_id * sizeof(uint4))) / float(1000 * samples);
+      output[out_idx] = pack_rgb(rgb);
+    }
+    if (samples > 110) {
+      InterlockedExchange(sample_data[path.sample_id].flags, 1);
+    }
+    if (samples < 100) {
+      output[out_idx] = pack_rgb(float3(0.0,float(samples+10) / 110.0,0.0));
+    }
 
     // Re-mark the path to be sampled:
     path.sampled = 0;
   } else {
+    let out_pos = sample_data[path.sample_id].out_pos;
+    let out_idx = out_pos.x + out_pos.y * dims.x;
+    let samples = sample_data[path.sample_id].samples;
+    if (samples < 100) {
+      output[out_idx] = pack_rgb(float3(0.0,0.0,float(samples+10) / 110.0));
+    }
+
     // Path is not yet terminated this is where we would give it to the material it hit
     // but for now im just putting it straight back on the extension queue.
     switch (hit.mat) {
       case 0:
         // No material??? Shouldn't get here.
-        output[threadId.x + threadId.y * dims.x] = pack_rgb(float3(0.0,0.0,255.0));
+        // output[threadId.x + threadId.y * dims.x] = pack_rgb(float3(0.0,0.0,255.0));
         break;
       case 1:
         // Lambertian

@@ -25,7 +25,7 @@ import sample;
 [[vk::binding(3,5)]] RWStructuredBuffer<float4> sample_std;
 
 [shader("compute")]
-[numthreads(256,1,1)]
+[numthreads(64,1,1)]
 void newRayMain(uint3 threadId : SV_DispatchThreadID) {
   uint index;
   if (queueRead(qh_new_ray, qd_new_ray, index) == -1) {

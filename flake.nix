@@ -102,6 +102,7 @@
               just
               shader-slang
               spirv-tools
+              vulkan-tools
             ])
             ++ runtimeDeps;
         };

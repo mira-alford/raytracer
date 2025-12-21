@@ -7,6 +7,7 @@ use crate::{camera, dims::Dims, path, queue, sample};
 pub struct LogicPhase {
     start_pipeline: wgpu::ComputePipeline,
     pipeline: wgpu::ComputePipeline,
+    maintain_sample_pipeline: wgpu::ComputePipeline,
     output_buffer: wgpu::Buffer,
     output_bind_group: wgpu::BindGroup,
 }
@@ -87,6 +88,16 @@ impl LogicPhase {
             cache: Default::default(),
         });
 
+        let maintain_sample_pipeline =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Maintain Samples Start Pipeline"),
+                layout: Some(&pipeline_layout),
+                module: &compute_shader,
+                entry_point: Some("maintainSamples"),
+                compilation_options: Default::default(),
+                cache: Default::default(),
+            });
+
         let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("LogicPhase Pipeline"),
             layout: Some(&pipeline_layout),
@@ -97,8 +108,9 @@ impl LogicPhase {
         });
 
         Self {
-            start_pipeline,
+            start_pipeline: start_pipeline,
             pipeline,
+            maintain_sample_pipeline,
             output_buffer,
             output_bind_group,
         }
@@ -133,6 +145,19 @@ impl LogicPhase {
         }
         compute_pass.dispatch_workgroups(1, 1, 1);
 
+        // Maintain samples
+        compute_pass.set_pipeline(&self.maintain_sample_pipeline);
+        compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
+        compute_pass.set_bind_group(1, &new_ray_queue.bind_group, &[]);
+        compute_pass.set_bind_group(2, &self.output_bind_group, &[]);
+        compute_pass.set_bind_group(3, &dims.bindgroup, &[]);
+        compute_pass.set_bind_group(4, &samples.bind_group, &[]);
+        compute_pass.set_bind_group(5, &camera.bind_group, &[]);
+        for (i, m) in material_queues.iter().enumerate() {
+            compute_pass.set_bind_group(i as u32 + 6, &m.bind_group, &[]);
+        }
+        compute_pass.dispatch_workgroups(dims.size().div_ceil(256), 1, 1);
+
         // Main Pipeilne:
         compute_pass.set_pipeline(&self.pipeline);
         compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
@@ -145,6 +170,7 @@ impl LogicPhase {
             compute_pass.set_bind_group(i as u32 + 6, &m.bind_group, &[]);
         }
         compute_pass.dispatch_workgroups(dims.threads.div_ceil(64), 1, 1);
+
         drop(compute_pass);
 
         encoder.finish()

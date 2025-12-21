@@ -81,7 +81,7 @@ impl State {
 
         // Configure rendering stuff:
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::PRIMARY,
+            backends: wgpu::Backends::VULKAN,
             ..Default::default()
         });
 
@@ -90,11 +90,15 @@ impl State {
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
+                power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
             })
             .await?;
+
+        // println!("Adapter: {:?}", adapter.get_info());
+        // println!("Backend: {:?}", adapter.get_info().backend);
+        // println!("Features: {:?}", adapter.features());
 
         let mut limits = wgpu::Limits::defaults();
         limits.max_bind_groups = 8;
@@ -106,7 +110,7 @@ impl State {
                 required_features: wgpu::Features::empty(),
                 experimental_features: wgpu::ExperimentalFeatures::disabled(),
                 required_limits: limits,
-                memory_hints: Default::default(),
+                memory_hints: wgpu::MemoryHints::Performance,
                 trace: wgpu::Trace::Off,
             })
             .await?;
@@ -130,7 +134,7 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
-        let dims = Dims::new(&device, (4096, 4096), 512 * 512);
+        let dims = Dims::new(&device, (1024, 1024), 1024 * 1024);
 
         // Load models:
         let mut load_options = tobj::GPU_LOAD_OPTIONS;
@@ -185,9 +189,9 @@ impl State {
 
         // Instances:
         let mut instances = vec![];
-        for x in 1..=5 {
-            for y in 0..5 {
-                for z in 1..=5 {
+        for x in 1..=100 {
+            for y in 0..50 {
+                for z in 1..=100 {
                     let material = random_range(1..=2);
                     let material_idx = match material {
                         1 => random_range(0..lambertian_data.len() as u32),
@@ -196,7 +200,7 @@ impl State {
                     };
                     instances.push(Instance {
                         transform: instance::Transform {
-                            scale: Vec3::splat(random_range(1.0..=1.5)),
+                            scale: Vec3::splat(random_range(0.01..=1.0)),
                             rotation: Vec3::ZERO.map(|_| random_range(0.0..=1.0 * f32::consts::PI)),
                             translation: Vec3::new(x as f32 * 2.0, y as f32 * 2.0, z as f32 * 2.0)
                                 .map(|i| i + random_range(-0.25..=0.25)),
