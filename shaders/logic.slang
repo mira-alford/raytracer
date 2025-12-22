@@ -24,9 +24,8 @@ import camera;
 
 [[vk::binding(0,6)]] RWStructuredBuffer<QueueHeader> qh_lambertian;
 [[vk::binding(1,6)]] RWStructuredBuffer<uint> qd_lambertian;
-
-[[vk::binding(0,7)]] RWStructuredBuffer<QueueHeader> qh_metallic;
-[[vk::binding(1,7)]] RWStructuredBuffer<uint> qd_metallic;
+[[vk::binding(2,6)]] RWStructuredBuffer<QueueHeader> qh_metallic;
+[[vk::binding(3,6)]] RWStructuredBuffer<uint> qd_metallic;
 
 [shader("compute")]
 [numthreads(1,1,1)]
@@ -133,11 +132,11 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
         break;
       case 1:
         // Lambertian
-        queuePush(qh_lambertian, qd_lambertian, threadId.x + threadId.y * dims.x);
+        queuePush(qh_lambertian, qd_lambertian, threadId.x);
         break;
       case 2:
         // Lambertian
-        queuePush(qh_metallic, qd_metallic, threadId.x + threadId.y * dims.x);
+        queuePush(qh_metallic, qd_metallic, threadId.x );
         break;
       default:
         break;

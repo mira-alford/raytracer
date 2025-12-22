@@ -1,6 +1,7 @@
+use itertools::Itertools;
 use tracing::info;
 use wesl::include_wesl;
-use wgpu::{include_spirv, util::DeviceExt};
+use wgpu::{BindGroupLayoutEntry, include_spirv, util::DeviceExt};
 
 use crate::{camera, dims::Dims, path, queue, sample};
 
@@ -10,6 +11,7 @@ pub struct LogicPhase {
     maintain_sample_pipeline: wgpu::ComputePipeline,
     output_buffer: wgpu::Buffer,
     output_bind_group: wgpu::BindGroup,
+    material_bind_group: wgpu::BindGroup,
 }
 
 impl LogicPhase {
@@ -55,23 +57,71 @@ impl LogicPhase {
             }],
         });
 
+        let material_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Materials Bindgroup Layout"),
+                entries: &material_queues
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, mq)| {
+                        vec![
+                            BindGroupLayoutEntry {
+                                binding: (i * 2) as u32,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                            BindGroupLayoutEntry {
+                                binding: (i * 2 + 1) as u32,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                        ]
+                    })
+                    .collect_vec(),
+            });
+
+        let material_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Materials Bindgroup"),
+            layout: &material_bind_group_layout,
+            entries: &material_queues
+                .iter()
+                .enumerate()
+                .flat_map(|(i, mq)| {
+                    vec![
+                        wgpu::BindGroupEntry {
+                            binding: (i * 2) as u32,
+                            resource: mq.counter_uniform.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: (i * 2 + 1) as u32,
+                            resource: mq.queue_buffer.as_entire_binding(),
+                        },
+                    ]
+                })
+                .collect_vec(),
+        });
+
         // TODO this is actually a mess lol.
         // please clean this, it feels bad.
-        let bind_group_layouts = std::iter::chain(
-            [
-                path_buffer.path_bind_group_layout.clone(),
-                new_ray_queue.bind_group_layout.clone(),
-                output_bind_group_layout,
-                dims.bindgroup_layout.clone(),
-                samples.bind_group_layout.clone(),
-                camera.bind_group_layout.clone(),
-            ]
-            .into_iter(),
-            material_queues
-                .iter()
-                .map(|mq| mq.bind_group_layout.clone()),
-        )
-        .collect::<Vec<_>>();
+        let bind_group_layouts = [
+            path_buffer.path_bind_group_layout.clone(),
+            new_ray_queue.bind_group_layout.clone(),
+            output_bind_group_layout,
+            dims.bindgroup_layout.clone(),
+            samples.bind_group_layout.clone(),
+            camera.bind_group_layout.clone(),
+            material_bind_group_layout,
+        ];
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("LogicPhase Pipleline Layout"),
@@ -113,6 +163,7 @@ impl LogicPhase {
             maintain_sample_pipeline,
             output_buffer,
             output_bind_group,
+            material_bind_group,
         }
     }
 
@@ -140,9 +191,7 @@ impl LogicPhase {
         compute_pass.set_bind_group(3, &dims.bindgroup, &[]);
         compute_pass.set_bind_group(4, &samples.bind_group, &[]);
         compute_pass.set_bind_group(5, &camera.bind_group, &[]);
-        for (i, m) in material_queues.iter().enumerate() {
-            compute_pass.set_bind_group(i as u32 + 6, &m.bind_group, &[]);
-        }
+        compute_pass.set_bind_group(6, &self.material_bind_group, &[]);
         compute_pass.dispatch_workgroups(1, 1, 1);
 
         // Maintain samples
@@ -153,9 +202,7 @@ impl LogicPhase {
         compute_pass.set_bind_group(3, &dims.bindgroup, &[]);
         compute_pass.set_bind_group(4, &samples.bind_group, &[]);
         compute_pass.set_bind_group(5, &camera.bind_group, &[]);
-        for (i, m) in material_queues.iter().enumerate() {
-            compute_pass.set_bind_group(i as u32 + 6, &m.bind_group, &[]);
-        }
+        compute_pass.set_bind_group(6, &self.material_bind_group, &[]);
         compute_pass.dispatch_workgroups(4096.min(dims.size()), 1, 1);
 
         // Main Pipeilne:
@@ -166,9 +213,7 @@ impl LogicPhase {
         compute_pass.set_bind_group(3, &dims.bindgroup, &[]);
         compute_pass.set_bind_group(4, &samples.bind_group, &[]);
         compute_pass.set_bind_group(5, &camera.bind_group, &[]);
-        for (i, m) in material_queues.iter().enumerate() {
-            compute_pass.set_bind_group(i as u32 + 6, &m.bind_group, &[]);
-        }
+        compute_pass.set_bind_group(6, &self.material_bind_group, &[]);
         compute_pass.dispatch_workgroups(dims.threads.div_ceil(64), 1, 1);
 
         drop(compute_pass);

@@ -3,6 +3,7 @@ use std::f32::consts::PI;
 
 use crate::blas;
 use crate::blas::BLASData;
+use crate::dielectric::DielectricData;
 use crate::instance;
 use crate::instance::Instance;
 use crate::instance::Instances;
@@ -20,6 +21,7 @@ pub(crate) fn grid_scene(
 ) -> (
     Vec<LambertianData>,
     Vec<MetallicData>,
+    Vec<DielectricData>,
     Instances,
     BLASData,
     TLASData,
@@ -75,6 +77,10 @@ pub(crate) fn grid_scene(
         })
         .collect_vec();
 
+    let dielectric_data = vec![DielectricData {
+        ..Default::default()
+    }];
+
     // Instances:
     let mut instances = vec![];
     for x in 1..=10 {
@@ -115,6 +121,7 @@ pub(crate) fn grid_scene(
     (
         lambertian_data,
         metallic_data,
+        dielectric_data,
         instances,
         blas_data,
         tlas_data,
@@ -126,6 +133,7 @@ pub(crate) fn cornell_scene(
 ) -> (
     Vec<LambertianData>,
     Vec<MetallicData>,
+    Vec<DielectricData>,
     Instances,
     BLASData,
     TLASData,
@@ -187,6 +195,10 @@ pub(crate) fn cornell_scene(
             ..Default::default()
         },
     ];
+
+    let dielectric_data = vec![DielectricData {
+        ..Default::default()
+    }];
 
     // Instances:
     let mut instances = vec![];
@@ -309,6 +321,7 @@ pub(crate) fn cornell_scene(
     (
         lambertian_data,
         metallic_data,
+        dielectric_data,
         instances,
         blas_data,
         tlas_data,

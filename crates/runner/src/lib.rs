@@ -1,6 +1,7 @@
 mod blas;
 mod bvh;
 mod camera;
+mod dielectric;
 mod dims;
 mod extension;
 mod instance;
@@ -50,12 +51,14 @@ pub struct State {
     new_ray_queue: queue::Queue,
     lambertian_queue: queue::Queue,
     metallic_queue: queue::Queue,
+    dielectric_queue: queue::Queue,
     extension_queue: queue::Queue,
     logic_phase: logic::LogicPhase,
     render_phase: render::RenderPhase,
     new_ray_phase: new_ray::NewRayPhase,
     lambertian_phase: lambertian::LambertianPhase,
     metallic_phase: metallic::MetallicPhase,
+    dielectric_phase: dielectric::DielectricPhase,
     extension_phase: extension::ExtensionPhase,
     instances: Instances,
     blas_data: blas::BLASData,
@@ -132,7 +135,7 @@ impl State {
         let dims = Dims::new(&device, (512, 512), 512 * 512);
 
         // let (lambertian_data, metallic_data, instances, blas_data, tlas_data) = grid_scene(&device);
-        let (lambertian_data, metallic_data, instances, blas_data, tlas_data) =
+        let (lambertian_data, metallic_data, dielectric_data, instances, blas_data, tlas_data) =
             scenes::cornell_scene(&device);
 
         // Make a bunch of queues:
@@ -141,6 +144,7 @@ impl State {
         let extension_queue = queue::Queue::new(&device, dims.threads, Some("ExtensionPhase"));
         let lambertian_queue = queue::Queue::new(&device, dims.threads, Some("LambertianQueue"));
         let metallic_queue = queue::Queue::new(&device, dims.threads, Some("MetallicQueue"));
+        let dielectric_queue = queue::Queue::new(&device, dims.threads, Some("DielectricQueue"));
         let camera = camera::Camera::new(&device, Some("MainCamera"));
 
         // Sample States
@@ -153,7 +157,7 @@ impl State {
             &samples,
             &camera,
             &new_ray_queue,
-            &[&lambertian_queue, &metallic_queue],
+            &[&lambertian_queue, &metallic_queue, &dielectric_queue],
             &dims,
         );
         let new_ray_phase = new_ray::NewRayPhase::new(
@@ -180,6 +184,14 @@ impl State {
             &extension_queue,
             metallic_data,
             Some("Metallic"),
+        );
+        let dielectric_phase = dielectric::DielectricPhase::new(
+            &device,
+            &paths,
+            &dielectric_queue,
+            &extension_queue,
+            dielectric_data,
+            Some("Dielectric"),
         );
 
         let mut rng = rand::rng();
@@ -223,11 +235,13 @@ impl State {
             new_ray_phase,
             lambertian_phase,
             metallic_phase,
+            dielectric_phase,
             extension_phase,
             paths,
             new_ray_queue,
             lambertian_queue,
             metallic_queue,
+            dielectric_queue,
             extension_queue,
             instances,
             camera,
@@ -345,6 +359,12 @@ impl State {
             &self.metallic_queue,
             &self.extension_queue,
         );
+        let dielectric_commands = self.dielectric_phase.render(
+            &self.device,
+            &self.paths,
+            &self.dielectric_queue,
+            &self.extension_queue,
+        );
         let extension_commands = self.extension_phase.render(
             &self.device,
             &self.paths,
@@ -363,6 +383,7 @@ impl State {
             new_ray_commands,
             metallic_commands,
             lambertian_commands,
+            dielectric_commands,
             extension_commands,
             renderer_commands,
         ]);

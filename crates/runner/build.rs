@@ -51,4 +51,5 @@ fn main() {
     build_slang("extension");
     build_slang("lambertian");
     build_slang("metallic");
+    build_slang("dielectric");
 }
