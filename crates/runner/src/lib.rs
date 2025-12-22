@@ -132,11 +132,11 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
-        let dims = Dims::new(&device, (2048, 2048), 1024 * 1024);
+        let dims = Dims::new(&device, (512, 512), 512 * 512);
 
         // let (lambertian_data, metallic_data, instances, blas_data, tlas_data) = grid_scene(&device);
         let (lambertian_data, metallic_data, dielectric_data, instances, blas_data, tlas_data) =
-            scenes::cornell_scene(&device);
+            scenes::windows(&device);
 
         // Make a bunch of queues:
         let paths = path::Paths::new(&device, &dims);

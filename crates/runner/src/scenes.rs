@@ -197,7 +197,7 @@ pub(crate) fn cornell_scene(
     ];
 
     let dielectric_data = vec![DielectricData {
-        albedo: [0.0, 0.83, 1.0, 0.0],
+        albedo: [0.83, 1.0, 0.0, 0.0],
         ir: 1.47,
         ..Default::default()
     }];
@@ -347,6 +347,255 @@ pub(crate) fn cornell_scene(
 
     let blas_data = blas::BLASData::new(device, blases);
     let tlas_data = TLASData::new(device, tlas);
+    (
+        lambertian_data,
+        metallic_data,
+        dielectric_data,
+        instances,
+        blas_data,
+        tlas_data,
+    )
+}
+
+pub(crate) fn windows(
+    device: &wgpu::Device,
+) -> (
+    Vec<LambertianData>,
+    Vec<MetallicData>,
+    Vec<DielectricData>,
+    Instances,
+    BLASData,
+    TLASData,
+) {
+    let mut load_options = tobj::GPU_LOAD_OPTIONS;
+    load_options.single_index = false;
+
+    let mut meshes = Vec::new();
+
+    meshes.push(mesh::Mesh::rect());
+    let quad_id = (meshes.len() - 1) as u32;
+    meshes.push(mesh::Mesh::cube());
+    let cube_id = (meshes.len() - 1) as u32;
+
+    // 0 = nice neutral gray
+    let lambertian_data = vec![LambertianData {
+        albedo: [0.75, 0.75, 0.78, 0.0],
+    }];
+
+    let metallic_data = vec![MetallicData {
+        ..Default::default()
+    }];
+
+    // let dielectric_data = vec![
+    //     DielectricData {
+    //         albedo: [0.65, 1.00, 0.20, 0.0],
+    //         ir: 1.3,
+    //         ..Default::default()
+    //     },
+    //     DielectricData {
+    //         albedo: [1.00, 0.60, 0.20, 0.0],
+    //         ir: 1.3,
+    //         ..Default::default()
+    //     },
+    //     DielectricData {
+    //         albedo: [0.35, 0.35, 1.00, 0.0],
+    //         ir: 1.3,
+    //         ..Default::default()
+    //     },
+    //     DielectricData {
+    //         albedo: [0.85, 0.20, 1.00, 0.0],
+    //         ir: 1.3,
+    //         ..Default::default()
+    //     },
+    //     DielectricData {
+    //         albedo: [0.45, 1.00, 0.75, 0.0],
+    //         ir: 1.3,
+    //         ..Default::default()
+    //     },
+    // ];
+
+    let dielectric_data = (0..100)
+        .into_iter()
+        .map(|i| DielectricData {
+            albedo: [0, 0, 0, 0].map(|a| random_range(0.0..=1.0)),
+            ir: 1.2,
+            ..Default::default()
+        })
+        .collect_vec();
+
+    let mut instances = vec![];
+
+    let half = 5.0;
+    let depth = 500.0;
+    let z_mid = depth * 0.5;
+    let offset = Vec3::new(0.0, 0.0, half);
+
+    instances.extend(
+        vec![
+            // Back wall:
+            Instance {
+                transform: instance::Transform {
+                    scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
+                    rotation: Vec3::ZERO,
+                    translation: Vec3::new(0.0, 0.0, depth),
+                    ..Default::default()
+                },
+                mesh: quad_id,
+                material: 1,
+                material_idx: 0,
+                ..Default::default()
+            },
+            // Floor:
+            Instance {
+                transform: instance::Transform {
+                    scale: Vec3::new(half * 2.0, depth, 1.0),
+                    rotation: Vec3::new(PI * 0.5, 0.0, 0.0),
+                    translation: Vec3::new(0.0, -half, z_mid),
+                    ..Default::default()
+                },
+                mesh: quad_id,
+                material: 1,
+                material_idx: 0,
+                ..Default::default()
+            },
+            // Ceiling:
+            Instance {
+                transform: instance::Transform {
+                    scale: Vec3::new(half * 2.0, depth, 1.0),
+                    rotation: Vec3::new(-PI * 0.5, 0.0, 0.0),
+                    translation: Vec3::new(0.0, half, z_mid),
+                    ..Default::default()
+                },
+                mesh: quad_id,
+                material: 1,
+                material_idx: 0,
+                ..Default::default()
+            },
+            // Left wall:
+            Instance {
+                transform: instance::Transform {
+                    scale: Vec3::new(depth, half * 2.0, 1.0),
+                    rotation: Vec3::new(0.0, -PI * 0.5, 0.0),
+                    translation: Vec3::new(-half, 0.0, z_mid),
+                    ..Default::default()
+                },
+                mesh: quad_id,
+                material: 1,
+                material_idx: 0,
+                ..Default::default()
+            },
+        ]
+        .into_iter()
+        .map(|mut i| {
+            i.transform.translation += offset;
+            i
+        })
+        .collect_vec(),
+    );
+
+    // Right wall as: [thin strip][window][thin strip][window]...[thin strip end]
+    let window_count: usize = 100;
+    let strip_w = 0.01; // thin bits of wall between windows
+    let window_w = 8.0; // width along corridor (z-direction) per window
+    let window_h = 8.0; // tall window
+    let y_center = 0.0; // centered vertically
+    let z_start = 1.0; // start a little into the corridor
+
+    let mut z_cursor = z_start;
+    for i in 0..window_count {
+        // Strip segment
+        let strip_center_z = z_cursor + strip_w * 0.5;
+        instances.push(Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(strip_w, half * 2.0, 1.0),
+                rotation: Vec3::new(0.0, PI * 0.5, 0.0),
+                translation: Vec3::new(half, 0.0, strip_center_z) + offset,
+                ..Default::default()
+            },
+            mesh: cube_id,
+            material: 1,
+            material_idx: 0,
+            ..Default::default()
+        });
+
+        z_cursor += strip_w;
+
+        // Window segment
+        let win_center_z = z_cursor + window_w * 0.5;
+        let diel_idx = (i % dielectric_data.len()) as u32;
+
+        instances.push(Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(window_w, window_h, 1.0),
+                rotation: Vec3::new(0.0, PI * 0.5, 0.0),
+                translation: Vec3::new(half, y_center, win_center_z) + offset,
+                ..Default::default()
+            },
+            mesh: cube_id,
+            material: 3,
+            material_idx: diel_idx,
+            ..Default::default()
+        });
+
+        z_cursor += window_w;
+    }
+
+    // Final strip to fill in remainder:
+    if z_cursor < depth {
+        let remaining = depth - z_cursor;
+        let strip_center_z = z_cursor + remaining * 0.5;
+        instances.push(Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(remaining, half * 2.0, 1.0),
+                rotation: Vec3::new(0.0, PI * 0.5, 0.0),
+                translation: Vec3::new(half, 0.0, strip_center_z) + offset,
+                ..Default::default()
+            },
+            mesh: cube_id,
+            material: 1,
+            material_idx: 0,
+            ..Default::default()
+        });
+    }
+
+    // Bottom/top window gaps:
+    instances.extend(vec![
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(depth, half - window_h / 2.0, 1.0),
+                rotation: Vec3::new(0.0, PI * 0.5, 0.0),
+                translation: Vec3::new(half, window_h / 4.0 + half / 2.0, z_mid),
+                ..Default::default()
+            },
+            mesh: cube_id,
+            material: 1,
+            material_idx: 0,
+            ..Default::default()
+        },
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(depth, half - window_h / 2.0, 1.0),
+                rotation: Vec3::new(0.0, PI * 0.5, 0.0),
+                translation: Vec3::new(half, -window_h / 4.0 - half / 2.0, z_mid),
+                ..Default::default()
+            },
+            mesh: cube_id,
+            material: 1,
+            material_idx: 0,
+            ..Default::default()
+        },
+    ]);
+
+    let instances = Instances::new(device, instances);
+
+    // Make the BLAS & TLAS
+    let blases = meshes.into_iter().map(|m| blas::BLAS::new(m)).collect_vec();
+    dbg!(blases.iter().map(|blas| blas.nodes[0]).collect_vec());
+    let tlas = tlas::TLAS::new(&blases, &instances.instances);
+
+    let blas_data = blas::BLASData::new(device, blases);
+    let tlas_data = TLASData::new(device, tlas);
+
     (
         lambertian_data,
         metallic_data,

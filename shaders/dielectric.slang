@@ -81,8 +81,8 @@ void newRayMain(uint3 threadId : SV_DispatchThreadID) {
     path.ray.pos = hit.hit.pos - hit.hit.norm * 1e-4;
   }
   
-  path.ray.dir = normalize(scatter);
   path.throughput = mat_data.albedo.xyz;
+  path.ray.dir = normalize(scatter);
   
   queuePush(qh_extension, qd_extension, index);
 }
