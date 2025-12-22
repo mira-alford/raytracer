@@ -102,8 +102,13 @@ void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h)
   t = f * dot(e2, r);
 
   h.norm = normalize(cross(e1, e2));
+  h.norm = -sign(dot(h.norm, ray.dir)) * h.norm;
+  h.prim = face;
+  uv = float2(u,v);
   // h.norm = n0 * (1.0 - u - v) + n1 * u + n2 * v;
-  h.pos = ray.pos + t * ray.dir;
+  // h.pos = ray.pos + t * ray.dir;
+  h.pos = p0 + e1 * u + e2 * v;
+
   return;
 }
 
@@ -126,7 +131,7 @@ bool rayBoxIntersect(Ray ray, float3 lb, float3 ub, out float tmin, inout float 
   return tmin <= tmax;
 }
 
-void rayBLASIntersect(const Ray ray, const uint bvh_node, in float tmax, out float2 uv, out float t, out Hit h) {
+void rayBLASIntersect(const Ray ray, uint3 prim, const uint bvh_node, in float tmax, out float2 uv, out float t, out Hit h) {
   let root = bvh_node;
   var current = bvh_node;
   t = tmax;
@@ -154,9 +159,10 @@ void rayBLASIntersect(const Ray ray, const uint bvh_node, in float tmax, out flo
     // TODO: Maybe we can batch the triangles somehow?
     for (int p = node.start; p < node.end; p++) {
       let face = tri_faces[p];
+
       rayTriIntersect(face, ray, uv2, t2, h2);
 
-      if (t2 >= 0 && t2 < t) {
+      if (t2 >= 0.0 && t2 < t && (!face.equals(prim) || true)) {
         t = t2;
         h = h2;
         uv = uv2;
@@ -166,7 +172,7 @@ void rayBLASIntersect(const Ray ray, const uint bvh_node, in float tmax, out flo
   } while (root != current);
 }
 
-void rayTLASIntersect(const Ray ray, inout float2 uv, inout float t, inout Hit h, inout uint mat, inout uint mat_data) {
+void rayTLASIntersect(const Ray ray, uint3 prim, inout float2 uv, inout float t, inout Hit h, inout uint mat, inout uint mat_data) {
   let root = 0;
   var current = 0;
 
@@ -207,7 +213,7 @@ void rayTLASIntersect(const Ray ray, inout float2 uv, inout float t, inout Hit h
       r.pos = mul(mi, float4(r.pos, 1.0)).xyz;
       r.dir = mul(mi, float4(r.dir, 0.0)).xyz;
 
-      rayBLASIntersect(r, bid, t, uv2, t2, h2);
+      rayBLASIntersect(r, prim, bid, t, uv2, t2, h2);
 
       h2.pos  =           mul(m, float4(h2.pos,  1.0)).xyz;
       h2.norm = normalize(mul(m, float4(h2.norm, 0.0)).xyz);
@@ -279,11 +285,15 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
       h = h2;
     }
   }
+
+  h.prim = uint3(0);
+  let prim = hits[index].hit.prim;
  
   // BLAS Intersects
   float2 uv;
   rayTLASIntersect(
     path.ray,
+    prim,
     uv,
     t,
     h,

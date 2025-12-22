@@ -40,21 +40,26 @@ void logicStart(uint3 threadId : SV_DispatchThreadID) {
 }
 
 [shader("compute")]
-[numthreads(256,1,1)]
+[numthreads(64,1,1)]
 void maintainSamples(uint3 threadId : SV_DispatchThreadID) {
-  // Cycles the samples buffer, swap-adding to the active
-  // sample list where cycles need reactivation.
   if (threadId.x > sample_data.getCount()) {
     return;
   }
 
-  if (camera.changed != 0) {
-    sample_data[threadId.x].samples = 1;
-    sample_data[threadId.x].flags = 0;
-    sample_mean.InterlockedExchange(threadId.x * sizeof(uint4) + 0 * sizeof(uint), 0);
-    sample_mean.InterlockedExchange(threadId.x * sizeof(uint4) + 1 * sizeof(uint), 0);
-    sample_mean.InterlockedExchange(threadId.x * sizeof(uint4) + 2 * sizeof(uint), 0);
+  let wgc = WorkgroupCount().x;
+  let wgs = WorkgroupSize().x;
+  let work = sample_data.getCount() / (wgc * wgs);
+
+  for (int i = threadId.x * work; i < threadId.x * work + work; i++) {
+    if (camera.changed != 0) {
+      sample_data[i].samples = 1;
+      sample_data[i].flags = 0;
+      sample_mean.InterlockedExchange(i * sizeof(uint4) + 0 * sizeof(uint), 0);
+      sample_mean.InterlockedExchange(i * sizeof(uint4) + 1 * sizeof(uint), 0);
+      sample_mean.InterlockedExchange(i * sizeof(uint4) + 2 * sizeof(uint), 0);
+    }
   }
+
 }
 
 [shader("compute")]
@@ -103,18 +108,17 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     InterlockedAdd(sample_data[path.sample_id].samples, 1, samples);
 
     sample_mean.InterlockedAdd(path.sample_id * sizeof(uint4) + 0 * sizeof(uint),
-                                uint(path.rad.x * 1000.0));
+                                uint(path.rad.x * 10000.0));
     sample_mean.InterlockedAdd(path.sample_id * sizeof(uint4) + 1 * sizeof(uint),
-                                uint(path.rad.y * 1000.0));
+                                uint(path.rad.y * 10000.0));
     sample_mean.InterlockedAdd(path.sample_id * sizeof(uint4) + 2 * sizeof(uint),
-                                uint(path.rad.z * 1000.0));
-
+                                uint(path.rad.z * 10000.0));
 
     // Write the sampled radiance to the output buffer:
     let out_pos = sample_data[path.sample_id].out_pos;
     let out_idx = out_pos.x + out_pos.y * dims.x;
 
-    float3 rgb = float3(sample_mean.Load3(path.sample_id * sizeof(uint4))) / float(1000 * samples);
+    float3 rgb = float3(sample_mean.Load3(path.sample_id * sizeof(uint4))) / float(10000 * samples);
     output[out_idx] = pack_rgb(rgb);
 
     // Re-mark the path to be sampled:

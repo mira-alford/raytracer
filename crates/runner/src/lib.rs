@@ -14,6 +14,7 @@ mod path;
 mod queue;
 mod render;
 mod sample;
+mod scenes;
 mod texture;
 mod tlas;
 
@@ -22,7 +23,7 @@ use std::{collections::HashSet, f32::consts::PI, sync::Arc};
 
 use glam::Vec3;
 use itertools::Itertools;
-use rand::{Rng, random_range};
+use rand::Rng;
 use wgpu::util::DeviceExt;
 use winit::{
     application::ApplicationHandler,
@@ -34,14 +35,8 @@ use winit::{
 };
 
 use crate::{
-    blas::BLASData,
-    dims::Dims,
-    extension::Sphere,
-    instance::{Instance, Instances},
-    lambertian::LambertianData,
-    mesh::Meshes,
-    metallic::MetallicData,
-    sample::Samples,
+    blas::BLASData, dims::Dims, extension::Sphere, instance::Instances, lambertian::LambertianData,
+    mesh::Meshes, metallic::MetallicData, sample::Samples, tlas::TLASData,
 };
 
 pub struct State {
@@ -64,7 +59,7 @@ pub struct State {
     extension_phase: extension::ExtensionPhase,
     instances: Instances,
     blas_data: blas::BLASData,
-    tlas_data: tlas::TLASData,
+    tlas_data: TLASData,
     camera: camera::Camera,
     window: Arc<Window>,
     dims: Dims,
@@ -134,95 +129,11 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
-        let dims = Dims::new(&device, (512, 512), 256 * 256);
+        let dims = Dims::new(&device, (512, 512), 512 * 512);
 
-        // Load models:
-        let mut load_options = tobj::GPU_LOAD_OPTIONS;
-        load_options.single_index = false;
-
-        let mut meshes = Vec::new();
-
-        // Suzanne!
-        let (models, materials) = tobj::load_obj("assets/suzanne.obj", &load_options).unwrap();
-        meshes.push(mesh::Mesh::from_model(&models[0].mesh));
-
-        // Teapot!
-        let (models, materials) = tobj::load_obj("assets/teapot.obj", &load_options).unwrap();
-        meshes.push(mesh::Mesh::from_model(&models[0].mesh));
-
-        // Teapot!
-        let (models, materials) = tobj::load_obj("assets/dragon.obj", &load_options).unwrap();
-        meshes.push(mesh::Mesh::from_model(&models[0].mesh));
-
-        // Make material data for lambertian:
-        let mut lambertian_data = vec![
-            // For now, 3 instances, r/g/b each
-            LambertianData {
-                albedo: [0.9, 0.9, 0.9, 0.0],
-            },
-            LambertianData {
-                albedo: [0.8, 0.8, 0.9, 0.0],
-            },
-            LambertianData {
-                albedo: [0.8, 0.9, 0.8, 0.0],
-            },
-            LambertianData {
-                albedo: [0.9, 0.8, 0.8, 0.0],
-            },
-        ];
-        for _ in 0..10 {
-            lambertian_data.push(LambertianData {
-                albedo: [0.0, 0.0, 0.0, 0.0].map(|_| random_range(0.0..=1.0)),
-            });
-        }
-
-        // Make material data for metallics:
-        let metallic_data = lambertian_data
-            .clone()
-            .into_iter()
-            .map(|ld| MetallicData {
-                albedo: ld.albedo.map(|_| random_range(0.0..=1.0)),
-                fuzz: random_range(-1.0..=1.0f32).clamp(0.0, 1.0),
-                ..Default::default()
-            })
-            .collect_vec();
-
-        // Instances:
-        let mut instances = vec![];
-        for x in 1..=100 {
-            for y in 0..50 {
-                for z in 1..=100 {
-                    let material = random_range(1..=2);
-                    let material_idx = match material {
-                        1 => random_range(0..lambertian_data.len() as u32),
-                        2 => random_range(0..metallic_data.len() as u32),
-                        _ => panic!(),
-                    };
-                    instances.push(Instance {
-                        transform: instance::Transform {
-                            scale: Vec3::splat(random_range(0.01..=1.0)),
-                            rotation: Vec3::ZERO.map(|_| random_range(0.0..=1.0 * f32::consts::PI)),
-                            translation: Vec3::new(x as f32 * 2.0, y as f32 * 2.0, z as f32 * 2.0)
-                                .map(|i| i + random_range(-0.25..=0.25)),
-                            ..Default::default()
-                        },
-                        mesh: random_range(0..meshes.len() as u32),
-                        material: material,
-                        material_idx: material_idx,
-                        ..Default::default()
-                    });
-                }
-            }
-        }
-        let instances = Instances::new(&device, instances);
-
-        // Make the BLAS & TLAS
-        let blases = meshes.into_iter().map(|m| blas::BLAS::new(m)).collect_vec();
-        dbg!(blases.iter().map(|blas| blas.nodes[0]).collect_vec());
-        let tlas = tlas::TLAS::new(&blases, &instances.instances);
-
-        let blas_data = blas::BLASData::new(&device, blases);
-        let tlas_data = tlas::TLASData::new(&device, tlas);
+        // let (lambertian_data, metallic_data, instances, blas_data, tlas_data) = grid_scene(&device);
+        let (lambertian_data, metallic_data, instances, blas_data, tlas_data) =
+            scenes::cornell_scene(&device);
 
         // Make a bunch of queues:
         let paths = path::Paths::new(&device, &dims);
@@ -272,7 +183,7 @@ impl State {
         );
 
         let mut rng = rand::rng();
-        let mut spheres = (0..4)
+        let mut spheres = (0..0)
             .map(|_| Sphere {
                 position: [
                     rng.random_range(-10.0..=10.0),
@@ -285,7 +196,7 @@ impl State {
         spheres.push(Sphere {
             position: [5.0, -10000.0, 3.0],
             // position: [5.0, -10000000.0, 3.0],
-            radius: 9999.0,
+            radius: 0.0,
             ..Default::default()
         });
 

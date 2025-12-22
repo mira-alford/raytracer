@@ -156,7 +156,7 @@ impl LogicPhase {
         for (i, m) in material_queues.iter().enumerate() {
             compute_pass.set_bind_group(i as u32 + 6, &m.bind_group, &[]);
         }
-        compute_pass.dispatch_workgroups(dims.size().div_ceil(256), 1, 1);
+        compute_pass.dispatch_workgroups(4096.min(dims.size()), 1, 1);
 
         // Main Pipeilne:
         compute_pass.set_pipeline(&self.pipeline);

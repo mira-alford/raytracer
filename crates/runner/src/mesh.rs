@@ -72,6 +72,32 @@ impl Mesh {
             faces,
         }
     }
+
+    pub fn rect() -> Self {
+        // A unit quad centered at origin on the XY plane
+        let positions = vec![
+            [-0.5, -0.5, 0.0, 1.0], // bottom-left
+            [0.5, -0.5, 0.0, 1.0],  // bottom-right
+            [0.5, 0.5, 0.0, 1.0],   // top-right
+            [-0.5, 0.5, 0.0, 1.0],  // top-left
+        ];
+
+        // All normals pointing +Z
+        let normals = vec![
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+        ];
+
+        let faces = vec![[0, 1, 2, 0], [0, 2, 3, 0]];
+
+        Self {
+            positions,
+            normals,
+            faces,
+        }
+    }
 }
 
 pub struct Meshes {
