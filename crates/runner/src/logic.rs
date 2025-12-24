@@ -202,7 +202,7 @@ impl LogicPhase {
         compute_pass.set_bind_group(4, &samples.bind_group, &[]);
         compute_pass.set_bind_group(5, &camera.bind_group, &[]);
         compute_pass.set_bind_group(6, &self.material_bind_group, &[]);
-        compute_pass.dispatch_workgroups(4096.min(dims.size()), 1, 1);
+        compute_pass.dispatch_workgroups(4096.min(dims.size().div_ceil(64)), 1, 1);
 
         // Main Pipeilne:
         compute_pass.set_pipeline(&self.pipeline);

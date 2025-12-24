@@ -45,7 +45,7 @@ use crate::{
     mesh::Meshes,
     metallic::MetallicData,
     sample::Samples,
-    scenes::{Scene, SceneBuilder, boxes_scene},
+    scenes::{Scene, SceneBuilder, boxes_scene, sponza_scene},
     tlas::TLASData,
 };
 
@@ -144,9 +144,9 @@ impl State {
         };
 
         let dims = Dims::new(&device, (512, 512), 512 * 512);
-
         let mut sb = SceneBuilder::new();
         boxes_scene(&mut sb);
+
         let Scene {
             lambertian_data,
             metallic_data,
@@ -165,7 +165,7 @@ impl State {
         let metallic_queue = queue::Queue::new(&device, dims.threads, Some("MetallicQueue"));
         let dielectric_queue = queue::Queue::new(&device, dims.threads, Some("DielectricQueue"));
         let emissive_queue = queue::Queue::new(&device, dims.threads, Some("EmissiveQueue"));
-        let camera = camera::Camera::new(&device, Some("MainCamera"));
+        let mut camera = camera::Camera::new(&device, Some("MainCamera"));
 
         // Sample States
         let samples = Samples::new(&device, dims.dims);
@@ -300,6 +300,9 @@ impl State {
         match (code, is_pressed) {
             (KeyCode::Escape, true) => {
                 event_loop.exit();
+            }
+            (KeyCode::KeyQ, true) => {
+                dbg!(&self.camera.data);
             }
             _ => {}
         }

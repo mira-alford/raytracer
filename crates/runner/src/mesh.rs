@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use wgpu::{BindGroupLayoutEntry, util::DeviceExt};
 
+#[derive(Default)]
 pub struct Mesh {
     pub positions: Vec<[f32; 4]>,
     pub normals: Vec<[f32; 4]>,
@@ -8,6 +9,73 @@ pub struct Mesh {
 }
 
 impl Mesh {
+    pub fn new(positions: Vec<[f32; 3]>, indices: Vec<u32>, normals: Vec<[f32; 3]>) -> Self {
+        let positions = positions
+            .into_iter()
+            .map(|p| [p[0], p[1], p[2], 0.0])
+            .collect_vec();
+
+        let len = positions.len();
+        // let center = positions
+        //     .iter()
+        //     .copied()
+        //     .reduce(|acc, pos| {
+        //         [
+        //             acc[0] + pos[0],
+        //             acc[1] + pos[1],
+        //             acc[2] + pos[2],
+        //             acc[3] + pos[3],
+        //         ]
+        //     })
+        //     .unwrap()
+        //     .map(|i| i / len as f32);
+
+        // let positions = positions
+        //     .into_iter()
+        //     .map(|p| {
+        //         [
+        //             (p[0] - center[0]),
+        //             (p[1] - center[1]),
+        //             (p[2] - center[2]),
+        //             (p[3] - center[3]),
+        //         ]
+        //     })
+        //     .collect_vec();
+
+        // Calculate the greatest distance from center
+        // so we can scale down such that furthest point is on the unit cube
+        // let mut extent: f32 = 0.0;
+        // for pos in &positions {
+        //     extent = extent.max((pos[0].powi(2) + pos[1].powi(2) + pos[2].powi(2)).sqrt());
+        // }
+
+        // let positions = positions
+        //     .into_iter()
+        //     .map(|p| [p[0] / extent, p[1] / extent, p[2] / extent, 1.0])
+        //     .collect_vec();
+
+        let faces = indices
+            .chunks_exact(3)
+            .into_iter()
+            .map(|p| [p[0], p[1], p[2], 0])
+            .collect_vec();
+
+        let normals = if normals.len() >= positions.len() && !normals.is_empty() {
+            normals
+                .iter()
+                .map(|c| [c[0], c[1], c[2], 0.0])
+                .collect_vec()
+        } else {
+            Self::compute_vertex_normals_ccw(&positions, &indices)
+        };
+
+        Self {
+            positions,
+            normals,
+            faces,
+        }
+    }
+
     pub fn from_model(model: &tobj::Mesh) -> Self {
         let positions = model
             .positions

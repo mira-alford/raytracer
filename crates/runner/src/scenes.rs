@@ -15,8 +15,11 @@ use crate::mesh;
 use crate::metallic::MetallicData;
 use crate::tlas;
 use crate::tlas::TLASData;
+use glam::Mat4;
 use glam::Vec3;
+use gltf::Gltf;
 use itertools::Itertools;
+use rand::random_bool;
 use rand::random_range;
 
 pub enum MaterialData {
@@ -128,7 +131,95 @@ impl SceneBuilder {
         }
     }
 
-    pub fn build(self, device: &wgpu::Device) -> Scene {
+    // pub fn load_gltf_node(&mut self, node: gltf::Node<'_>, transform: Option<Mat4>) {
+    //     let mat = transform.map(|transform| {
+    //         transform.mul_mat4(&glam::Mat4::from_cols_array_2d(&node.transform().matrix()))
+    //     });
+
+    //     for child in node.children() {
+    //         self.load_gltf_node(child, mat);
+    //     }
+
+    //     let Some(mesh) = node.mesh() else {
+    //         return;
+    //     };
+    // }
+
+    // pub fn load_gltf(&mut self, path: &str) {
+    //     let (gltf, buffers, _) = gltf::import(path).unwrap();
+
+    //     let base_colour = self.add_material(LambertianData {
+    //         albedo: [0.9, 0.9, 0.9, 0.0],
+    //     }) as u32;
+
+    //     let light = self.add_material(EmissiveData {
+    //         albedo: [0.8, 0.8, 1.0, 0.0],
+    //     }) as u32;
+
+    //     for node in gltf.nodes() {
+    //         self.load_gltf_node(node, None);
+
+    //         for (pi, p) in m.primitives().enumerate() {
+    //             let r = p.reader(|buffer| Some(&buffers[buffer.index()]));
+    //             let name = m.name().map(|s| format!("{}.{}", s, pi));
+
+    //             println!("{:?}", name);
+    //             let mesh = mesh::Mesh::new(
+    //                 r.read_positions().unwrap().collect(),
+    //                 r.read_indices().unwrap().into_u32().collect(),
+    //                 r.read_normals().unwrap().collect(),
+    //             );
+    //             let mesh_id = self.add_mesh(mesh, name.as_ref().map(|s| s.as_str()));
+
+    //             let mut material = 1;
+
+    //             let colour = p.material().pbr_metallic_roughness().base_color_factor();
+    //             dbg!(colour);
+    //             let mut material_idx = self.add_material(LambertianData {
+    //                 albedo: [colour[0], colour[1], colour[2], 0.0],
+    //             }) as u32;
+
+    //             if p.material().emissive_factor().iter().copied().sum::<f32>() > 0.0f32 {
+    //                 material = 4;
+    //                 material_idx = light;
+    //             }
+
+    //             self.add_instance(Instance {
+    //                 transform: instance::Transform {
+    //                     scale: Vec3::splat(1.0),
+    //                     rotation: Vec3::ZERO,
+    //                     translation: Vec3::ZERO,
+    //                     ..Default::default()
+    //                 },
+    //                 mesh: mesh_id as u32,
+    //                 material,
+    //                 material_idx,
+    //                 ..Default::default()
+    //             });
+    //         }
+    //     }
+    // }
+
+    pub fn build(mut self, device: &wgpu::Device) -> Scene {
+        if self.instances.len() == 0 {
+            self.instances.push(Default::default());
+        }
+        if self.lambertian_data.len() == 0 {
+            self.lambertian_data.push(Default::default());
+        }
+        if self.metallic_data.len() == 0 {
+            self.metallic_data.push(Default::default());
+        }
+        if self.dielectric_data.len() == 0 {
+            self.dielectric_data.push(Default::default());
+        }
+        if self.emissive_data.len() == 0 {
+            self.emissive_data.push(Default::default());
+        }
+        if self.meshes.len() == 0 {
+            self.meshes.push(mesh::Mesh::cube());
+        }
+
         let instances = Instances::new(device, self.instances);
 
         // Make the BLAS & TLAS
@@ -152,6 +243,27 @@ impl SceneBuilder {
             tlas_data,
         }
     }
+}
+
+pub fn sponza_scene(sb: &mut SceneBuilder) {
+    // sb.load_gltf("assets/main_sponza/NewSponza_Curtains_glTF.gltf");
+    // // sb.load_gltf("assets/sponza/Sponza.gltf");
+    // let lc = sb.add_mesh(mesh::Mesh::cube(), Some("LightCube")) as u32;
+    // let lcm = sb.add_material(EmissiveData {
+    //     albedo: [0.7, 0.8, 1.0, 0.0],
+    // }) as u32;
+    // sb.add_instance(Instance {
+    //     transform: instance::Transform {
+    //         scale: Vec3::splat(2.0),
+    //         rotation: Vec3::splat(0.0),
+    //         translation: Vec3::new(12.617, 4.52, -0.23),
+    //         ..Default::default()
+    //     },
+    //     mesh: lc,
+    //     material: 4,
+    //     material_idx: lcm,
+    //     ..Default::default()
+    // });
 }
 
 pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
@@ -447,7 +559,6 @@ pub(crate) fn grid_scene(
 
     // Make the BLAS & TLAS
     let blases = meshes.into_iter().map(|m| blas::BLAS::new(m)).collect_vec();
-    dbg!(blases.iter().map(|blas| blas.nodes[0]).collect_vec());
     let tlas = tlas::TLAS::new(&blases, &instances.instances);
 
     let blas_data = blas::BLASData::new(device, blases);
@@ -698,7 +809,6 @@ pub(crate) fn cornell_scene(
 
     // Make the BLAS & TLAS
     let blases = meshes.into_iter().map(|m| blas::BLAS::new(m)).collect_vec();
-    dbg!(blases.iter().map(|blas| blas.nodes[0]).collect_vec());
     let tlas = tlas::TLAS::new(&blases, &instances.instances);
 
     let blas_data = blas::BLASData::new(device, blases);
@@ -952,7 +1062,6 @@ pub(crate) fn windows(
 
     // Make the BLAS & TLAS
     let blases = meshes.into_iter().map(|m| blas::BLAS::new(m)).collect_vec();
-    dbg!(blases.iter().map(|blas| blas.nodes[0]).collect_vec());
     let tlas = tlas::TLAS::new(&blases, &instances.instances);
 
     let blas_data = blas::BLASData::new(device, blases);

@@ -62,6 +62,7 @@ void maintainSamples(uint3 threadId : SV_DispatchThreadID) {
       sample_mean.InterlockedExchange(i * sizeof(uint4) + 0 * sizeof(uint), 0);
       sample_mean.InterlockedExchange(i * sizeof(uint4) + 1 * sizeof(uint), 0);
       sample_mean.InterlockedExchange(i * sizeof(uint4) + 2 * sizeof(uint), 0);
+      sample_mean.InterlockedExchange(i * sizeof(uint4) + 3 * sizeof(uint), 0);
     }
   }
 
