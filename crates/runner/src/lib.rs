@@ -37,8 +37,16 @@ use winit::{
 };
 
 use crate::{
-    blas::BLASData, dims::Dims, extension::Sphere, instance::Instances, lambertian::LambertianData,
-    mesh::Meshes, metallic::MetallicData, sample::Samples, tlas::TLASData,
+    blas::BLASData,
+    dims::Dims,
+    extension::Sphere,
+    instance::Instances,
+    lambertian::LambertianData,
+    mesh::Meshes,
+    metallic::MetallicData,
+    sample::Samples,
+    scenes::{Scene, SceneBuilder, boxes_scene},
+    tlas::TLASData,
 };
 
 pub struct State {
@@ -137,8 +145,9 @@ impl State {
 
         let dims = Dims::new(&device, (512, 512), 512 * 512);
 
-        // let (lambertian_data, metallic_data, instances, blas_data, tlas_data) = grid_scene(&device);
-        let (
+        let mut sb = SceneBuilder::new();
+        boxes_scene(&mut sb);
+        let Scene {
             lambertian_data,
             metallic_data,
             dielectric_data,
@@ -146,7 +155,7 @@ impl State {
             instances,
             blas_data,
             tlas_data,
-        ) = scenes::boxes(&device);
+        } = sb.build(&device);
 
         // Make a bunch of queues:
         let paths = path::Paths::new(&device, &dims);
