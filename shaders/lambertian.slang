@@ -23,7 +23,7 @@ public struct LambertianData {
 
 [shader("compute")]
 [numthreads(64,1,1)]
-void newRayMain(uint3 threadId : SV_DispatchThreadID) {
+void computeMain(uint3 threadId : SV_DispatchThreadID) {
   uint index;
   if (queueRead(qh_material, qd_material, index) == -1) {
     return;

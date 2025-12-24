@@ -308,13 +308,6 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     // White Sky:
     paths[index].rad += paths[index].throughput * float3(1.0);
     paths[index].terminated = 1;
-
-    // Black Sky:
-    //   paths[index].terminated = 1;
-    // } else {
-    //   // Flag for immediate completion, TODO a proper flag system
-    //   paths[index].sampled = 0;
-    // }
   }
 
 }

@@ -43,7 +43,7 @@ float3 refract_vec(float3 uv, float3 n, float eta) {
 
 [shader("compute")]
 [numthreads(64,1,1)]
-void newRayMain(uint3 threadId : SV_DispatchThreadID) {
+void computeMain(uint3 threadId : SV_DispatchThreadID) {
   uint index;
   if (queueRead(qh_material, qd_material, index) == -1) {
     return;

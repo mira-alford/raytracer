@@ -146,7 +146,7 @@ impl State {
             instances,
             blas_data,
             tlas_data,
-        ) = scenes::grid_scene(&device);
+        ) = scenes::boxes(&device);
 
         // Make a bunch of queues:
         let paths = path::Paths::new(&device, &dims);
