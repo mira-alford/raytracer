@@ -101,24 +101,28 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     }
 
     // Generate the path starting conditions:
-    path.bounces = 16;
+    path.bounces = 32;
     path.throughput = float3(1.0);
     path.rad = float3(0.0);
     path.sampled = 1;
     path.terminated = 0;
     path.sample_id = sample_id;
+    hit.hit.prim = uint(-1);
     queuePush(qh_new_ray, qd_new_ray, threadId.x);
   } else if (path.terminated == 1) {
     // Path is terminated, update the sample data:
     var samples = 0;
     InterlockedAdd(sample_data[path.sample_id].samples, 1, samples);
 
+    // path.rad.x = sqrt(path.rad.x);
+    float mag = 1.0;
+
     sample_mean.InterlockedAdd(path.sample_id * sizeof(uint4) + 0 * sizeof(uint),
-                                uint(path.rad.x * 10000.0));
+                                uint(path.rad.x * 10000.0 / mag));
     sample_mean.InterlockedAdd(path.sample_id * sizeof(uint4) + 1 * sizeof(uint),
-                                uint(path.rad.y * 10000.0));
+                                uint(path.rad.y * 10000.0 / mag));
     sample_mean.InterlockedAdd(path.sample_id * sizeof(uint4) + 2 * sizeof(uint),
-                                uint(path.rad.z * 10000.0));
+                                uint(path.rad.z * 10000.0 / mag));
 
     // Write the sampled radiance to the output buffer:
     let out_pos = sample_data[path.sample_id].out_pos;

@@ -40,9 +40,19 @@ impl Camera {
     pub fn new(device: &wgpu::Device, label: Option<&str>) -> Self {
         let label = label.unwrap_or_default();
 
+        let camera_data = CameraData {
+            position: [-3.8, 0.4, 6.0],
+            forward: [0.55, -0.59, 0.66],
+            up: [0.31, 0.86, 0.38],
+            dims: [1.0, 1.0],
+            focal_length: 1.0,
+            changed: 0,
+            ..Default::default()
+        };
+
         let uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&format!("{} Camera Uniform", label)),
-            contents: bytemuck::bytes_of(&CameraData::new()),
+            contents: bytemuck::bytes_of(&camera_data),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -70,7 +80,7 @@ impl Camera {
         });
 
         Self {
-            data: CameraData::new(),
+            data: camera_data,
             uniform,
             bind_group,
             bind_group_layout,

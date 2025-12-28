@@ -130,7 +130,7 @@ void rayBLASIntersect(const Ray ray, uint3 prim, const uint bvh_node, in float t
 
       rayTriIntersect(face, ray, uv2, t2, h2);
 
-      if (t2 >= 0.0 && t2 < t && (!face.equals(prim) || true)) {
+      if (t2 >= 0.0 && t2 < t && (!h2.prim.equals(prim))) {
         t = t2;
         h = h2;
         uv = uv2;
@@ -250,7 +250,7 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     }
   }
 
-  h.prim = uint3(0);
+  h.prim = uint3(-1);
   let prim = hits[index].hit.prim;
  
   // BLAS Intersects
@@ -271,7 +271,7 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     paths[index].terminated = paths[index].terminated | paths[index].bounces == 0;
   } else {
     // White Sky:
-    paths[index].rad += paths[index].throughput * float3(0.0);
+    paths[index].rad = paths[index].throughput * float3(0.8);
     paths[index].terminated = 1;
   }
 

@@ -325,7 +325,7 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
     }) as u32;
 
     let light = scene_builder.add_material(EmissiveData {
-        albedo: [0.5, 0.8, 0.9, 1.0].map(|i| i * 1.0),
+        albedo: [0.5, 0.8, 0.9, 1.0].map(|i| i + 0.0),
     }) as u32;
 
     let half = 5.0;
@@ -348,18 +348,18 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
             ..Default::default()
         },
         // Front wall:
-        // Instance {
-        //     transform: instance::Transform {
-        //         scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
-        //         rotation: Vec3::ZERO,
-        //         translation: Vec3::new(0.0, 0.0, 0.0),
-        //         ..Default::default()
-        //     },
-        //     mesh: quad_id,
-        //     material: 1,
-        //     material_idx: 0,
-        //     ..Default::default()
-        // },
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
+                rotation: Vec3::ZERO,
+                translation: Vec3::new(0.0, 0.0, 0.0),
+                ..Default::default()
+            },
+            mesh: quad_id,
+            material: 1,
+            material_idx: 0,
+            ..Default::default()
+        },
         // Floor:
         Instance {
             transform: instance::Transform {
@@ -389,9 +389,21 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
         // Ceiling Light
         Instance {
             transform: instance::Transform {
-                scale: Vec3::new(6.0, 0.5, 6.0),
+                scale: Vec3::new(1.0, 0.5, 6.0),
                 rotation: Vec3::new(0.0, 0.0, 0.0),
-                translation: Vec3::new(0.0, half - 0.25, half),
+                translation: Vec3::new(-half + 1.0, half - 0.25, half),
+                ..Default::default()
+            },
+            mesh: cube_id,
+            material: 4,
+            material_idx: light,
+            ..Default::default()
+        },
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(1.0, 0.5, 6.0),
+                rotation: Vec3::new(0.0, 0.0, 0.0),
+                translation: Vec3::new(half - 1.0, half - 0.25, half),
                 ..Default::default()
             },
             mesh: cube_id,

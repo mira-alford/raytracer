@@ -425,54 +425,57 @@ impl State {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut commands = Vec::new();
+        for _ in 0..1 {
+            let mut commands = Vec::new();
 
-        commands.push(self.logic_phase.render(
-            &self.device,
-            &self.paths,
-            &self.samples,
-            &self.camera,
-            &self.new_ray_queue,
-            &self.dims,
-        ));
-        commands.push(self.new_ray_phase.render(
-            &self.device,
-            &self.paths,
-            &self.samples,
-            &self.new_ray_queue,
-            &self.extension_queue,
-            &self.camera,
-            &self.dims,
-        ));
-
-        for (i, mat_phase) in self.material_phases.iter().enumerate() {
-            commands.push(mat_phase.render(
+            commands.push(self.logic_phase.render(
                 &self.device,
                 &self.paths,
-                &self.material_queues[i],
+                &self.samples,
+                &self.camera,
+                &self.new_ray_queue,
+                &self.dims,
+            ));
+            commands.push(self.new_ray_phase.render(
+                &self.device,
+                &self.paths,
+                &self.samples,
+                &self.new_ray_queue,
+                &self.extension_queue,
+                &self.camera,
+                &self.dims,
+            ));
+
+            for (i, mat_phase) in self.material_phases.iter().enumerate() {
+                commands.push(mat_phase.render(
+                    &self.device,
+                    &self.paths,
+                    &self.material_queues[i],
+                    &self.extension_queue,
+                    &self.blas_data,
+                    &self.tlas_data,
+                    &self.instances,
+                    &self.light_sample_bindgroup,
+                ));
+            }
+
+            commands.push(self.extension_phase.render(
+                &self.device,
+                &self.paths,
                 &self.extension_queue,
                 &self.blas_data,
                 &self.tlas_data,
                 &self.instances,
-                &self.light_sample_bindgroup,
             ));
+
+            commands.push(self.render_phase.render(
+                &self.device,
+                &self.logic_phase.output(),
+                &view,
+            ));
+
+            self.queue.submit(commands);
         }
-
-        commands.push(self.extension_phase.render(
-            &self.device,
-            &self.paths,
-            &self.extension_queue,
-            &self.blas_data,
-            &self.tlas_data,
-            &self.instances,
-        ));
-
-        commands.push(
-            self.render_phase
-                .render(&self.device, &self.logic_phase.output(), &view),
-        );
-
-        self.queue.submit(commands);
 
         output.present();
 

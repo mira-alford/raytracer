@@ -8,9 +8,9 @@ import random;
 import tlas;
 
 public interface IMaterial {
-  public float eval_brdf(float3 wi, float3 wo, float3 n);
+  public float4 brdf(float3 wi, float3 wo, float3 n);
+  public float pdf(float3 wi, float3 wo, float3 n);
   public bool scatter(out float3 wi, float3 wo, float3 n, inout uint4 random_state);
-  public bool colour(out float4 colour);
   public bool emit(out float4 colour);
 }
 
@@ -50,29 +50,27 @@ public void process_material<T>(
   let mat_data = mat_datas[hit.mat_data];
 
   // Emission + Albedo:
-  float4 albedo;
-  if (mat_data.colour(albedo)) {
-    path.throughput *= albedo.xyz;
-  }
-  if (mat_data.emit(albedo)) {
-    path.rad = albedo.xyz * path.throughput;
+  float4 emission;
+  if (mat_data.emit(emission)) {
+    path.rad = emission.xyz * path.throughput;
     path.terminated = 1;
     return;
   }
 
-  // Front face calculation + norm adjustment:
+  // Front face calculation + backface norm flipping:
   let front_face = dot(hit.hit.norm, path.ray.dir) < 0;
   let ffs = front_face ? 1 : -1;
   hit.hit.norm *= ffs;
   
   float3 scatter;
   float weight = 1.0;
-  const float light_prob = 0.1;
+  const float light_prob = 0.05;
 
   // Direct Light Sampling occurs with light_prob probability:
   if (!sample_light(random_states[index], light_prob)) {
     // No light sample, do scattering as usual:
-    if (mat_data.scatter(scatter,
+    if (mat_data.scatter(
+      scatter,
       -path.ray.dir,
       hit.hit.norm,
       random_states[index]
@@ -113,13 +111,18 @@ public void process_material<T>(
       // Otherwise, multiply weight by (actual_prob / sample_prob)
       // to do proper importance sampling:
       weight /= max(light_prob * sample_prob, 1e-8);
-      weight *= mat_data.eval_brdf(-scatter, -path.ray.dir, hit.hit.norm);
+      weight *= mat_data.pdf(-scatter, -path.ray.dir, hit.hit.norm);
       path.bounces = 2;
     }
   }
 
-  path.ray.dir = scatter;
+  path.throughput *= mat_data.brdf(-scatter, -path.ray.dir, hit.hit.norm).xyz;
   path.throughput *= weight;
+
+  // if (weight <= 1e-8) {
+  //   path.rad = float3(0.0,0.0,0.0);
+  //   path.terminated = 1;
+  // }
 
   // Update path position to match hit with slight epsilon
   // to avoid self intersects:
@@ -128,8 +131,10 @@ public void process_material<T>(
   //   path.ray.pos = hit.hit.pos - hit.hit.norm * 1e-3;
   // } else {
     // Scattered *off* the surface, so shift with norm
-    path.ray.pos = hit.hit.pos + hit.hit.norm * 1e-3;
+    // path.ray.pos = hit.hit.pos + hit.hit.norm * 1e-3;
   // }
+  path.ray.dir = scatter;
+  path.ray.pos = hit.hit.pos;
   
   // If not terminated, push for extension:
   if (path.terminated == 0) {
