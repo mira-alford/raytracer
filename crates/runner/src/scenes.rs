@@ -320,7 +320,7 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
     }) as u32;
     let mirror = scene_builder.add_material(MetallicData {
         albedo: [1.0, 1.0, 1.0, 0.0],
-        fuzz: 0.0,
+        fuzz: 0.01,
         ..Default::default()
     }) as u32;
 
@@ -331,10 +331,10 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
     }) as u32;
 
     // let light = scene_builder.add_material(EmissiveData {
-    //     albedo: [0.5, 0.8, 0.9, 1.0].map(|i| i + 0.0),
+    //     albedo: [0.5, 0.8, 0.9, 1.0].map(|i| i * 800.0),
     // }) as u32;
     let light = scene_builder.add_material(EmissiveData {
-        albedo: [0.5, 0.8, 0.9, 1.0].map(|i| i * 800.0),
+        albedo: [1.0, 1.0, 1.0, 1.0].map(|i| i * 800.0),
     }) as u32;
 
     let half = 5.0;
@@ -357,18 +357,18 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
             ..Default::default()
         },
         // Front wall:
-        // Instance {
-        //     transform: instance::Transform {
-        //         scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
-        //         rotation: Vec3::ZERO,
-        //         translation: Vec3::new(0.0, 0.0, 0.0),
-        //         ..Default::default()
-        //     },
-        //     mesh: quad_id,
-        //     material: 1,
-        //     material_idx: 0,
-        //     ..Default::default()
-        // },
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
+                rotation: Vec3::ZERO,
+                translation: Vec3::new(0.0, 0.0, 0.0),
+                ..Default::default()
+            },
+            mesh: quad_id,
+            material: 1,
+            material_idx: 0,
+            ..Default::default()
+        },
         // Floor:
         Instance {
             transform: instance::Transform {
@@ -455,8 +455,8 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
                 ..Default::default()
             },
             mesh: cube_id,
-            material: 1,
-            material_idx: purple,
+            material: 2,
+            material_idx: mirror,
             ..Default::default()
         },
         Instance {
@@ -467,8 +467,8 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
                 ..Default::default()
             },
             mesh: cube_id,
-            material: 3, // Dielectric
-            material_idx: glass,
+            material: 1, // Dielectric
+            material_idx: blue,
             ..Default::default()
         },
     ]

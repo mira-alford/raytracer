@@ -116,7 +116,7 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     }
 
     // Generate the path starting conditions:
-    path.bounces = 16;
+    path.bounces = 256;
     path.throughput = float3(1.0);
     path.rad = float3(0.0);
     path.sampled = 1;
@@ -136,6 +136,13 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     var samples = 0;
     InterlockedAdd(sample_data[path.sample_id].samples, 1, samples);
 
+    path.rad.x = select(isnan(path.rad.x), 0.0, path.rad.x);
+    path.rad.y = select(isnan(path.rad.y), 0.0, path.rad.y);
+    path.rad.z = select(isnan(path.rad.z), 0.0, path.rad.z);
+    path.rad.x = select(isinf(path.rad.x), 0.0, path.rad.x);
+    path.rad.y = select(isinf(path.rad.y), 0.0, path.rad.y);
+    path.rad.z = select(isinf(path.rad.z), 0.0, path.rad.z);
+
     sample_mean.InterlockedAdd(path.sample_id * sizeof(uint4) + 0 * sizeof(uint),
                                 uint(path.rad.x * 1024.0));
     sample_mean.InterlockedAdd(path.sample_id * sizeof(uint4) + 1 * sizeof(uint),
@@ -151,7 +158,7 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     
     rad *= exp2(-6.1); // TODO: compute this dynamically :)
     float3 rgb = acesToneMap(rad);
-    output[out_idx] = pack_rgb(rgb);
+    output[out_idx] = pack_rgb(rgb.zyx);
 
     // Re-mark the path to be sampled:
     path.sampled = 0;

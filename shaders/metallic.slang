@@ -5,10 +5,41 @@ import path;
 import queue;
 import random;
 import bvh;
+import material;
 
-public struct MetallicData {
+public struct MetallicData : IMaterial {
   float4 albedo;
   float fuzz;
+
+  public float4 brdf(float3 wi, float3 wo, float3 n) {
+    let oob = (dot(n, wi) <= 0.0 || dot(n, wo) <= 0.0);
+    return select(oob, 0.0, albedo / 3.1415);
+  }
+
+  public float pdf(float3 wi, float3 wo, float3 n) {
+    // let cosTheta = dot(n, wi);
+    // return select(cosTheta > 0.0, 1.0 / 6.2831, 0.0);
+    return max(0.0, dot(wi, n)) / 3.1415;
+  }
+
+  public bool scatter(out float3 wi, float3 wo, float3 n, inout uint4 random_state) {
+    let reflected = -wo - 2.0 * dot(-wo, n) * n;
+
+    RandomResult result = Random(random_state);
+    RandomResult result2 = Random(result.state);
+    RandomResult result3 = Random(result2.state);
+    let random_unit_sphere = normalize(1.0 - 2.0 * float3(result.value, result2.value, result3.value));
+
+    wi = reflected + random_unit_sphere * fuzz;
+    wi = normalize(select(length(wi) < 1e-6, reflected, wi));
+
+    return true;
+  }
+
+  public bool emit(out float4 colour) {
+    colour = float4(0.0);
+    return false;
+  }
 };
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
@@ -55,7 +86,7 @@ void computeMain(uint3 threadId : SV_DispatchThreadID) {
   RandomResult result = Random(random_states[index]);
   RandomResult result2 = Random(result.state);
   RandomResult result3 = Random(result2.state);
-  random_states[index] = result2.state;
+  random_states[index] = result3.state;
   let random_unit_sphere = normalize(1.0 - 2.0 * float3(result.value, result2.value, result3.value));
   float3 scatter = reflected + random_unit_sphere * mat_data.fuzz;
 
