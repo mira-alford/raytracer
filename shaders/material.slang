@@ -59,83 +59,60 @@ public void process_material<T>(
   }
   
   float3 scatter;
-  float weight = 1.0;
-  // const float light_prob = 0.01;
+  if (mat_data.scatter(
+    scatter,
+    -path.ray.dir,
+    hit.hit.norm,
+    random_states[index]
+  )) {
+  } else {
+    // We don't scatter, indicating the ray can just stop here.
+    path.terminated = 1;
+  }
 
-  // Direct Light Sampling occurs with light_prob probability:
-  // if (!sample_light(random_states[index], light_prob)) {
-    // No light sample, do scattering as usual:
-    if (mat_data.scatter(
-      scatter,
-      -path.ray.dir,
-      hit.hit.norm,
-      random_states[index]
-    )) {
-      // I omit weight = weight * brdf / brdf
-      // as sampled = actual, so it would always equal 1.0
-      // weight /= max(1.0 - max(light_prob,0.0), 1e-10);
+  if (path.terminated == 0) {
+    ShadowData sd = shadow_data[index];
+    float scatter_prob = mat_data.pdf(scatter, -path.ray.dir, hit.hit.norm);
+  
+    if (sd.prob > 0.0) {
+      float shadow_weight = sd.prob;
+      shadow_weight /= (sd.prob + mat_data.pdf(sd.dir, -path.ray.dir, hit.hit.norm));
+
+      float3 contrib = path.throughput;
+      contrib *= mat_data.brdf(sd.dir, -path.ray.dir, hit.hit.norm).xyz;
+      contrib *= dot(sd.dir, hit.hit.norm);
+      contrib *= shadow_weight;
+      contrib /= sd.prob;
+      path.rad += sd.rad * contrib;
+    }
+  
+    if (scatter_prob > 0.0) {
+      float scatter_weight = mat_data.pdf(scatter, -path.ray.dir, hit.hit.norm);
+      scatter_weight /= (scatter_prob + 0.0);
+      // FIXME: 0.0 should be prob of scatter in the light distribution...
+      // Calculating this seems interesting...
+      // Cast a ray
+      // Get all lights hit on the ray
+      // Sum the inverse of all the hit triangle areas * 1 / num tris per object
+      // Then afterwards we can just multiply by num hit/num objects
+      // This is going to be pretty close to and often just 0.0.... but its
+      // probably still important and hella annoying to compute.
+      // This doesnt seem to be the reason things are gaining energy though,
+      // so maybe its not so urgent to fix?
+
+      path.throughput *= mat_data.brdf(scatter, -path.ray.dir, hit.hit.norm).xyz;
+      path.throughput *= dot(scatter, hit.hit.norm);
+      path.throughput *= scatter_weight;
+      path.throughput /= scatter_prob;
     } else {
-      // We don't scatter, indicating the ray can just stop here.
+      path.throughput *= 0.0;
       path.terminated = 1;
     }
-  // } else {
-  //   // Light sample, start by sampling a random point on a light:
-  //   float3 sample_pos;
-  //   float sample_prob;
-  //   get_light_sample(
-  //     random_states[index],
-  //     sample_pos,
-  //     sample_prob,
-  //     light_samples,
-  //     blas_roots,
-  //     blas_nodes,
-  //     tlas_nodes,
-  //     tri_positions,
-  //     instances,
-  //   );
 
-  //   if (sample_prob <= 0.0 || path.bounces < 2) {
-  //     // Impossible sample, if we dont reject it we add infinity to the colour
-  //     // which is bad, obviously:
-  //     // path.sampled = 0;
-  //     path.terminated = 1;
-  //   } else {
-  //     // Then we "scatter" towards that sampled point:
-  //     scatter = normalize(sample_pos - hit.hit.pos);
-
-  //     // Otherwise, multiply weight by (actual_prob / sample_prob)
-  //     // to do proper importance sampling:
-  //     weight /= max(light_prob * sample_prob, 1e-10);
-  //     weight *= mat_data.pdf(scatter, -path.ray.dir, hit.hit.norm);
-  //     path.bounces = 2;
-  //   }
-  // }
-
-  path.throughput *= mat_data.brdf(scatter, -path.ray.dir, hit.hit.norm).xyz;
-
-  ShadowData sd = shadow_data[index];
-  path.rad += sd.rad * path.throughput * 0.05;
-  
-  // path.throughput *= dot(scatter, hit.hit.norm);
-  path.throughput *= weight;
-
-  // if (weight <= 1e-8) {
-  //   path.rad = float3(0.0,0.0,0.0);
-  //   path.terminated = 1;
-  // }
-
-  // Update path position to match hit with slight epsilon
-  // to avoid self intersects:
-  // if (dot(scatter, ffs * hit.hit.norm) < 0.0) {
-  //   // Scattered *into* the surface, so shift against norm
-  //   path.ray.pos = hit.hit.pos - hit.hit.norm * 1e-3;
-  // } else {
-    // Scattered *off* the surface, so shift with norm
     path.ray.pos = hit.hit.pos + hit.hit.norm * 1e-3;
-  // }
-  path.ray.dir = scatter;
-  // path.ray.pos = hit.hit.pos;
-  
+    path.ray.dir = scatter;
+  }
+
   // If not terminated, push for extension:
   if (path.terminated == 0) {
     queuePush(qh_extension, qd_extension, index);

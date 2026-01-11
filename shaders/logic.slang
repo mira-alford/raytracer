@@ -75,7 +75,22 @@ void maintainActiveSamples(uint3 threadId : SV_DispatchThreadID) {
   // swap-removing from the active sample list.
 }
 
-groupshared uint m;
+float3 acesToneMap(float3 hdr) {
+  float3x3 m1 = float3x3(
+      0.59719, 0.35458, 0.04823,
+      0.07600, 0.90834, 0.01566,
+      0.02840, 0.13383, 0.83770
+  );
+  float3x3 m2 = float3x3(
+       1.60475, -0.53108, -0.07367,
+      -0.10208,  1.10813, -0.00605,
+      -0.00327, -0.07276,  1.07602
+  );
+  let v = mul(m1, hdr);
+  let a = v*((v + 0.0245786)) - 0.000090537;
+  let b = v*((0.983729 * v + 0.4329510)) + 0.238081;
+  return saturate(mul(m2, a / b));
+}
 
 [shader("compute")]
 [numthreads(64,1,1)]
@@ -133,33 +148,9 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     let out_idx = out_pos.x + out_pos.y * dims.x;
 
     float3 rad = float3(sample_mean.Load3(path.sample_id * sizeof(uint4))) / float(1024 * samples);
-    rad *= 1;
-    // if (length(path.throughput.x) < 0.00000000000000001) {
-    //   rad = float3(1,0,0);
-    // } else {
-    //   rad = float3(0,0,0);
-    // }
-    // if (rad.y > rad.x && rad.y > rad.z) {
-    //   rad.y = 254;
-    //   rad.x = 0;
-    //   rad.z = 0;
-    // }
-    rad *= exp2(-5.0);
-    // rad = normalize(rad);
-
-    // float3 max_comp = max3(rad.r, rad.g, rad.b);
-    // rad = max(rad, 0.01 * max_comp);
     
-    // float a = 2.51f;
-    // float b = 0.03f;
-    // float c = 2.43f;
-    // float d = 0.59f;
-    // float e = 0.14f;
-    // rad = saturate((rad*(a*rad+b))/(rad*(c*rad+d)+e));
-
-    float3 rgb = (rad < 0.0031308) ? rad * 12.92 : pow(rad, 1.0 / 2.4) * 1.055 - 0.55;
-    rgb = saturate(rgb);
-    // float3 rgb = rad;
+    rad *= exp2(-9.0); // TODO: compute this dynamically :)
+    float3 rgb = acesToneMap(rad);
     output[out_idx] = pack_rgb(rgb);
 
     // Re-mark the path to be sampled:

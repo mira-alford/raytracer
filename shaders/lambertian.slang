@@ -14,7 +14,7 @@ public struct LambertianData : IMaterial {
 
   public float4 brdf(float3 wi, float3 wo, float3 n) {
     let oob = (dot(n, wi) <= 0.0 || dot(n, wo) <= 0.0);
-    return albedo;
+    // return albedo;
     return select(oob, 0.0, albedo / 3.1415);
   }
 
