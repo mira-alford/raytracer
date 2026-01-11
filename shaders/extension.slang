@@ -99,6 +99,8 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     }
   } else {
     // Skybox hit:
+    float strength = (dot(path.ray.dir, float3(0,1,0)) + 1.0)/2.0;
+    paths[index].rad += path.throughput * float3(30.0,0.0,0.0) * strength;
     paths[index].terminated = 1;
   }
 

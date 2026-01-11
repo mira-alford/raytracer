@@ -46,7 +46,7 @@ use crate::{
     mesh::Meshes,
     metallic::MetallicData,
     sample::Samples,
-    scenes::{Scene, SceneBuilder, boxes_scene, cornell_scene, sponza_scene},
+    scenes::{Scene, SceneBuilder, boxes_scene, cornell_scene, grid_scene, sponza_scene},
     tlas::TLASData,
 };
 
@@ -143,9 +143,11 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
-        let dims = Dims::new(&device, (512, 512), 512 * 512);
+        let dims = Dims::new(&device, (1024, 1024), 1024 * 1024);
         let mut sb = SceneBuilder::new();
-        cornell_scene(&mut sb);
+        boxes_scene(&mut sb);
+        // cornell_scene(&mut sb);
+        // grid_scene(&mut sb);
 
         let Scene {
             lambertian_data,

@@ -19,8 +19,11 @@ use glam::Mat4;
 use glam::Vec3;
 use gltf::Gltf;
 use itertools::Itertools;
+use rand::distr::Distribution;
+use rand::distr::weighted::WeightedIndex;
 use rand::random_bool;
 use rand::random_range;
+use rand::rng;
 
 pub enum MaterialData {
     Lambertian(LambertianData),
@@ -476,134 +479,116 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
     });
 }
 
-pub(crate) fn grid_scene(
-    device: &wgpu::Device,
-) -> (
-    Vec<LambertianData>,
-    Vec<MetallicData>,
-    Vec<DielectricData>,
-    Vec<EmissiveData>,
-    Instances,
-    BLASData,
-    TLASData,
-) {
-    // Load models:
-    let mut load_options = tobj::GPU_LOAD_OPTIONS;
-    load_options.single_index = false;
+pub(crate) fn grid_scene(scene_builder: &mut SceneBuilder) {
+    use std::f32::consts::PI;
 
-    let mut meshes = Vec::new();
+    let suzanne_id = scene_builder.add_obj("assets/suzanne.obj") as u32;
+    let teapot_id = scene_builder.add_obj("assets/teapot.obj") as u32;
+    let dragon_id = scene_builder.add_obj("assets/dragon.obj") as u32;
+    let cube_id = scene_builder.add_mesh(mesh::Mesh::cube(), Some("unit_cube")) as u32;
 
-    // Suzanne!
-    let (models, materials) = tobj::load_obj("assets/suzanne.obj", &load_options).unwrap();
-    meshes.push(mesh::Mesh::from_model(&models[0].mesh));
+    let mesh_ids = [suzanne_id, teapot_id, cube_id];
 
-    // Teapot!
-    let (models, materials) = tobj::load_obj("assets/teapot.obj", &load_options).unwrap();
-    meshes.push(mesh::Mesh::from_model(&models[0].mesh));
+    let mut lambertian_ids: Vec<u32> = vec![];
 
-    // Teapot!
-    let (models, materials) = tobj::load_obj("assets/dragon.obj", &load_options).unwrap();
-    meshes.push(mesh::Mesh::from_model(&models[0].mesh));
-
-    // Make material data for lambertian:
-    let mut lambertian_data = vec![
-        // For now, 3 instances, r/g/b each
-        LambertianData {
-            albedo: [0.9, 0.9, 0.9, 0.0],
-        },
-        LambertianData {
-            albedo: [0.8, 0.8, 0.9, 0.0],
-        },
-        LambertianData {
-            albedo: [0.8, 0.9, 0.8, 0.0],
-        },
-        LambertianData {
-            albedo: [0.9, 0.8, 0.8, 0.0],
-        },
-    ];
-    for _ in 0..10 {
-        lambertian_data.push(LambertianData {
-            albedo: [0.0, 0.0, 0.0, 0.0].map(|_| random_range(0.0..=1.0)),
-        });
+    for _ in 0..15 {
+        lambertian_ids.push(scene_builder.add_material(LambertianData {
+            albedo: [
+                random_range(0.0..=1.0),
+                random_range(0.0..=1.0),
+                random_range(0.0..=1.0),
+                0.0,
+            ],
+        }) as u32);
     }
 
-    // Make material data for metallics:
-    let metallic_data = lambertian_data
-        .clone()
-        .into_iter()
-        .map(|ld| MetallicData {
-            albedo: ld.albedo.map(|_| random_range(0.0..=1.0)),
+    let mut metallic_ids: Vec<u32> = Vec::with_capacity(lambertian_ids.len());
+    for _ in 0..lambertian_ids.len() {
+        metallic_ids.push(scene_builder.add_material(MetallicData {
+            albedo: [
+                random_range(0.0..=1.0),
+                random_range(0.0..=1.0),
+                random_range(0.0..=1.0),
+                0.0,
+            ],
             fuzz: random_range(-1.0..=1.0f32).clamp(0.0, 1.0),
             ..Default::default()
-        })
-        .collect_vec();
+        }) as u32);
+    }
 
-    let emissive_data = lambertian_data
-        .clone()
-        .into_iter()
-        .map(|ld| EmissiveData {
-            albedo: ld.albedo.map(|_| random_range(0.4..=1.0)),
-            ..Default::default()
-        })
-        .collect_vec();
+    let mut emissive_ids: Vec<u32> = Vec::with_capacity(lambertian_ids.len());
+    for _ in 0..lambertian_ids.len() {
+        emissive_ids.push(
+            scene_builder.add_material(EmissiveData {
+                albedo: [
+                    random_range(0.4..=1.0),
+                    random_range(0.4..=1.0),
+                    random_range(0.4..=1.0),
+                    1.0,
+                ]
+                .map(|i| i * 800.0),
+                ..Default::default()
+            }) as u32,
+        );
+    }
 
-    let dielectric_data = lambertian_data
-        .clone()
-        .into_iter()
-        .map(|ld| DielectricData {
-            albedo: ld.albedo.map(|_| random_range(0.0..=1.0)),
+    let mut dielectric_ids: Vec<u32> = Vec::with_capacity(lambertian_ids.len());
+    for _ in 0..lambertian_ids.len() {
+        dielectric_ids.push(scene_builder.add_material(DielectricData {
+            albedo: [
+                random_range(0.0..=1.0),
+                random_range(0.0..=1.0),
+                random_range(0.0..=1.0),
+                0.0,
+            ],
             ir: random_range(1.0..=1.8f32),
             ..Default::default()
-        })
-        .collect_vec();
+        }) as u32);
+    }
 
-    // Instances:
-    let mut instances = vec![];
+    let mut rng = rng();
+    let weights = [2.0, 1.0, 1.0, 0.1];
+    let mut dist = WeightedIndex::new(&weights).unwrap();
     for x in 1..=10 {
         for y in 0..5 {
             for z in 1..=10 {
-                let material = random_range(1..=4);
+                let material = (dist.sample(&mut rng) as u32) + 1;
+
                 let material_idx = match material {
-                    1 => random_range(0..lambertian_data.len() as u32),
-                    2 => random_range(0..metallic_data.len() as u32),
-                    3 => random_range(0..dielectric_data.len() as u32),
-                    4 => random_range(0..emissive_data.len() as u32),
-                    _ => panic!(),
+                    1 => lambertian_ids[random_range(0..lambertian_ids.len() as u32) as usize],
+                    2 => metallic_ids[random_range(0..metallic_ids.len() as u32) as usize],
+                    3 => dielectric_ids[random_range(0..dielectric_ids.len() as u32) as usize],
+                    4 => emissive_ids[random_range(0..emissive_ids.len() as u32) as usize],
+                    _ => unreachable!(),
                 };
-                instances.push(Instance {
+
+                let mesh = mesh_ids[random_range(0..mesh_ids.len() as u32) as usize];
+
+                let scale = Vec3::splat(random_range(0.5..=1.25));
+                let rotation = Vec3::ZERO.map(|_| random_range(0.0..=1.0 * PI)); // match your old behavior
+
+                let base_translation = Vec3::new(x as f32 * 2.0, y as f32 * 2.0, z as f32 * 2.0);
+                let jitter = Vec3::new(
+                    random_range(-0.25..=0.25),
+                    random_range(-0.25..=0.25),
+                    random_range(-0.25..=0.25),
+                );
+
+                scene_builder.add_instance(Instance {
                     transform: instance::Transform {
-                        scale: Vec3::splat(random_range(0.5..=1.25)),
-                        rotation: Vec3::ZERO.map(|_| random_range(0.0..=1.0 * f32::consts::PI)),
-                        translation: Vec3::new(x as f32 * 2.0, y as f32 * 2.0, z as f32 * 2.0)
-                            .map(|i| i + random_range(-0.25..=0.25)),
+                        scale,
+                        rotation,
+                        translation: base_translation + jitter,
                         ..Default::default()
                     },
-                    mesh: random_range(0..meshes.len() as u32),
-                    material: material,
-                    material_idx: material_idx,
+                    mesh,
+                    material,
+                    material_idx,
                     ..Default::default()
                 });
             }
         }
     }
-
-    let instances = Instances::new(device, instances);
-
-    // Make the BLAS & TLAS
-    let blases = meshes.into_iter().map(|m| blas::BLAS::new(m)).collect_vec();
-    let tlas = tlas::TLAS::new(&blases, &instances.instances);
-
-    let blas_data = blas::BLASData::new(device, blases);
-    let tlas_data = TLASData::new(device, tlas);
-    (
-        lambertian_data,
-        metallic_data,
-        dielectric_data,
-        emissive_data,
-        instances,
-        blas_data,
-        tlas_data,
-    )
 }
 
 pub(crate) fn cornell_scene(scene_builder: &mut SceneBuilder) {
