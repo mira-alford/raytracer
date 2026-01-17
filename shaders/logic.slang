@@ -116,7 +116,7 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     }
 
     // Generate the path starting conditions:
-    path.bounces = 256;
+    path.bounces = 8;
     path.throughput = float3(1.0);
     path.rad = float3(0.0);
     path.sampled = 1;

@@ -76,7 +76,7 @@ public void process_material<T>(
 
     const float eps = 1e-40;
 
-    // probs only matter if we use MIS, but im doing MIS+NEE
+    // NOTE these c_values only matter if we use MIS, but im doing MIS+NEE :)
     // const float c_light = max(0.5, eps);
     // const float c_scatter = max(1.0 - c_light, eps);
     const float c_light = 1.0;
@@ -127,7 +127,6 @@ public void process_material<T>(
       path.throughput *= 0.0;
       path.terminated = 1;
     }
-    // }
 
     path.ray.pos = hit.hit.pos + hit.hit.norm * 1e-3;
     path.ray.dir = scatter;

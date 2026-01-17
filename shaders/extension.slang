@@ -90,6 +90,10 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
   h.front_face = front_face;
   h.norm *= ffs;
 
+  // path.terminated = 1;
+  // path.rad = float3(t*100.0);
+  // return;
+
   if (t < float.maxValue) {
     hits[index].hit = h;
     paths[index].bounces -= 1;

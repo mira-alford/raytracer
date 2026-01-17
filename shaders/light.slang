@@ -35,6 +35,7 @@ public bool get_light_sample(
   out float3 sample_pos,
   out float sample_prob,
   out uint instance,
+  out float3 sample_norm,
   StructuredBuffer<uint> light_samples,
   StructuredBuffer<uint> blas_roots,
   StructuredBuffer<BVHNode> blas_nodes,
@@ -74,6 +75,7 @@ public bool get_light_sample(
   // Transform sample pos based on instance transform:
   let m = sample_instance.transform.matrix();
   sample_pos = mul(m, float4(sample_pos,1.0)).xyz;
+  sample_norm = cross(p1-p0, p2-p0);
 
   return true;
 }

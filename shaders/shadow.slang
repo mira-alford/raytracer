@@ -68,15 +68,21 @@ void shadowMain(uint3 threadId : SV_DispatchThreadID) {
     return;
   }
 
+  HitData hit = hits[index];
+  float3 orig = hit.hit.pos + hit.hit.norm * 1e-3;
+
   // Generate the shadow ray
   float3 sample_pos;
   float sample_prob;
   uint instance_id = -1;
+  float3 sample_norm;
+
   get_light_sample(
     random_states[index],
     sample_pos,
     sample_prob,
     instance_id,
+    sample_norm,
     light_samples,
     blas_roots,
     blas_nodes,
@@ -84,8 +90,7 @@ void shadowMain(uint3 threadId : SV_DispatchThreadID) {
     tri_positions,
     instances,
   );
-  HitData hit = hits[index];
-  float3 orig = hit.hit.pos + hit.hit.norm * 1e-3;
+
   float3 scatter = normalize(sample_pos - orig);
   float shadow_t = length(sample_pos - orig);
   Ray shadow_ray = Ray(orig, scatter);

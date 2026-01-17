@@ -357,18 +357,18 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
             ..Default::default()
         },
         // Front wall:
-        Instance {
-            transform: instance::Transform {
-                scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
-                rotation: Vec3::ZERO,
-                translation: Vec3::new(0.0, 0.0, 0.0),
-                ..Default::default()
-            },
-            mesh: quad_id,
-            material: 1,
-            material_idx: 0,
-            ..Default::default()
-        },
+        // Instance {
+        //     transform: instance::Transform {
+        //         scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
+        //         rotation: Vec3::ZERO,
+        //         translation: Vec3::new(0.0, 0.0, 0.0),
+        //         ..Default::default()
+        //     },
+        //     mesh: quad_id,
+        //     material: 1,
+        //     material_idx: 0,
+        //     ..Default::default()
+        // },
         // Floor:
         Instance {
             transform: instance::Transform {
@@ -803,146 +803,114 @@ pub(crate) fn cornell_scene(scene_builder: &mut SceneBuilder) {
     // // },
 }
 
-pub(crate) fn windows(
-    device: &wgpu::Device,
-) -> (
-    Vec<LambertianData>,
-    Vec<MetallicData>,
-    Vec<DielectricData>,
-    Vec<EmissiveData>,
-    Instances,
-    BLASData,
-    TLASData,
-) {
-    let mut load_options = tobj::GPU_LOAD_OPTIONS;
-    load_options.single_index = false;
-
-    let mut meshes = Vec::new();
-
-    meshes.push(mesh::Mesh::rect());
-    let quad_id = (meshes.len() - 1) as u32;
-    meshes.push(mesh::Mesh::cube());
-    let cube_id = (meshes.len() - 1) as u32;
+pub(crate) fn windows_scene(sb: &mut SceneBuilder) {
+    let quad_id = sb.add_mesh(mesh::Mesh::rect(), Some("unit_rect")) as u32;
+    let cube_id = sb.add_mesh(mesh::Mesh::cube(), Some("unit_cube")) as u32;
 
     // 0 = nice neutral gray
-    let lambertian_data = vec![LambertianData {
+    let wall_lambert = sb.add_material(LambertianData {
         albedo: [0.75, 0.75, 0.78, 0.0],
-    }];
+    }) as u32;
 
-    let metallic_data = vec![MetallicData {
+    let _default_metal = sb.add_material(MetallicData {
         ..Default::default()
-    }];
+    }) as u32;
+    let skylight = sb.add_material(EmissiveData {
+        albedo: [1.0, 1.0, 1.0, 1.0].map(|x| x * 200.0),
+    }) as u32;
 
-    let emissive_data = vec![EmissiveData {
-        ..Default::default()
-    }];
-
-    // let dielectric_data = vec![
-    //     DielectricData {
-    //         albedo: [0.65, 1.00, 0.20, 0.0],
-    //         ir: 1.3,
-    //         ..Default::default()
-    //     },
-    //     DielectricData {
-    //         albedo: [1.00, 0.60, 0.20, 0.0],
-    //         ir: 1.3,
-    //         ..Default::default()
-    //     },
-    //     DielectricData {
-    //         albedo: [0.35, 0.35, 1.00, 0.0],
-    //         ir: 1.3,
-    //         ..Default::default()
-    //     },
-    //     DielectricData {
-    //         albedo: [0.85, 0.20, 1.00, 0.0],
-    //         ir: 1.3,
-    //         ..Default::default()
-    //     },
-    //     DielectricData {
-    //         albedo: [0.45, 1.00, 0.75, 0.0],
-    //         ir: 1.3,
-    //         ..Default::default()
-    //     },
-    // ];
-
-    let dielectric_data = (0..100)
-        .into_iter()
-        .map(|i| DielectricData {
-            albedo: [0, 0, 0, 0].map(|a| random_range(0.0..=1.0)),
-            ir: 1.2,
-            ..Default::default()
+    let dielectric_ids: Vec<u32> = (0..100)
+        .map(|_i| {
+            sb.add_material(DielectricData {
+                albedo: [0, 0, 0, 0].map(|_| random_range(0.0..=1.0)),
+                ir: 1.2,
+                ..Default::default()
+            }) as u32
         })
-        .collect_vec();
-
-    let mut instances = vec![];
+        .collect();
 
     let half = 5.0;
     let depth = 500.0;
     let z_mid = depth * 0.5;
     let offset = Vec3::new(0.0, 0.0, half);
 
-    instances.extend(
-        vec![
-            // Back wall:
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
-                    rotation: Vec3::ZERO,
-                    translation: Vec3::new(0.0, 0.0, depth),
-                    ..Default::default()
-                },
-                mesh: quad_id,
-                material: 1,
-                material_idx: 0,
+    let base_walls = vec![
+        // Back wall:
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
+                rotation: Vec3::ZERO,
+                translation: Vec3::new(0.0, 0.0, depth),
                 ..Default::default()
             },
-            // Floor:
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::new(half * 2.0, depth, 1.0),
-                    rotation: Vec3::new(PI * 0.5, 0.0, 0.0),
-                    translation: Vec3::new(0.0, -half, z_mid),
-                    ..Default::default()
-                },
-                mesh: quad_id,
-                material: 1,
-                material_idx: 0,
+            mesh: quad_id,
+            material: 1,
+            material_idx: wall_lambert,
+            ..Default::default()
+        },
+        // Floor:
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(half * 2.0, depth, 1.0),
+                rotation: Vec3::new(PI * 0.5, 0.0, 0.0),
+                translation: Vec3::new(0.0, -half, z_mid),
                 ..Default::default()
             },
-            // Ceiling:
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::new(half * 2.0, depth, 1.0),
-                    rotation: Vec3::new(-PI * 0.5, 0.0, 0.0),
-                    translation: Vec3::new(0.0, half, z_mid),
-                    ..Default::default()
-                },
-                mesh: quad_id,
-                material: 1,
-                material_idx: 0,
+            mesh: quad_id,
+            material: 1,
+            material_idx: wall_lambert,
+            ..Default::default()
+        },
+        // Ceiling:
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(half * 2.0, depth, 1.0),
+                rotation: Vec3::new(-PI * 0.5, 0.0, 0.0),
+                translation: Vec3::new(0.0, half, z_mid),
                 ..Default::default()
             },
-            // Left wall:
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::new(depth, half * 2.0, 1.0),
-                    rotation: Vec3::new(0.0, -PI * 0.5, 0.0),
-                    translation: Vec3::new(-half, 0.0, z_mid),
-                    ..Default::default()
-                },
-                mesh: quad_id,
-                material: 1,
-                material_idx: 0,
+            mesh: quad_id,
+            material: 1,
+            material_idx: wall_lambert,
+            ..Default::default()
+        },
+        // Left wall:
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(depth, half * 2.0, 1.0),
+                rotation: Vec3::new(0.0, -PI * 0.5, 0.0),
+                translation: Vec3::new(-half, 0.0, z_mid),
                 ..Default::default()
             },
-        ]
+            mesh: quad_id,
+            material: 1,
+            material_idx: wall_lambert,
+            ..Default::default()
+        },
+        // The skylight
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(500000.0, 1.0, 500000.0),
+                rotation: Vec3::new(0.0, 0.0, 0.0),
+                translation: Vec3::new(0.0, 10000.0, 0.0),
+                ..Default::default()
+            },
+            mesh: cube_id,
+            material: 4,
+            material_idx: skylight,
+            ..Default::default()
+        },
+    ];
+
+    base_walls
         .into_iter()
         .map(|mut i| {
             i.transform.translation += offset;
             i
         })
-        .collect_vec(),
-    );
+        .for_each(|i| {
+            sb.add_instance(i);
+        });
 
     // Right wall as: [thin strip][window][thin strip][window]...[thin strip end]
     let window_count: usize = 100;
@@ -956,7 +924,7 @@ pub(crate) fn windows(
     for i in 0..window_count {
         // Strip segment
         let strip_center_z = z_cursor + strip_w * 0.5;
-        instances.push(Instance {
+        sb.add_instance(Instance {
             transform: instance::Transform {
                 scale: Vec3::new(strip_w, half * 2.0, 1.0),
                 rotation: Vec3::new(0.0, PI * 0.5, 0.0),
@@ -965,7 +933,7 @@ pub(crate) fn windows(
             },
             mesh: cube_id,
             material: 1,
-            material_idx: 0,
+            material_idx: wall_lambert,
             ..Default::default()
         });
 
@@ -973,9 +941,9 @@ pub(crate) fn windows(
 
         // Window segment
         let win_center_z = z_cursor + window_w * 0.5;
-        let diel_idx = (i % dielectric_data.len()) as u32;
+        let diel_idx = dielectric_ids[i % dielectric_ids.len()];
 
-        instances.push(Instance {
+        sb.add_instance(Instance {
             transform: instance::Transform {
                 scale: Vec3::new(window_w, window_h, 1.0),
                 rotation: Vec3::new(0.0, PI * 0.5, 0.0),
@@ -995,7 +963,7 @@ pub(crate) fn windows(
     if z_cursor < depth {
         let remaining = depth - z_cursor;
         let strip_center_z = z_cursor + remaining * 0.5;
-        instances.push(Instance {
+        sb.add_instance(Instance {
             transform: instance::Transform {
                 scale: Vec3::new(remaining, half * 2.0, 1.0),
                 rotation: Vec3::new(0.0, PI * 0.5, 0.0),
@@ -1004,55 +972,35 @@ pub(crate) fn windows(
             },
             mesh: cube_id,
             material: 1,
-            material_idx: 0,
+            material_idx: wall_lambert,
             ..Default::default()
         });
     }
 
     // Bottom/top window gaps:
-    instances.extend(vec![
-        Instance {
-            transform: instance::Transform {
-                scale: Vec3::new(depth, half - window_h / 2.0, 1.0),
-                rotation: Vec3::new(0.0, PI * 0.5, 0.0),
-                translation: Vec3::new(half, window_h / 4.0 + half / 2.0, z_mid),
-                ..Default::default()
-            },
-            mesh: cube_id,
-            material: 1,
-            material_idx: 0,
+    sb.add_instance(Instance {
+        transform: instance::Transform {
+            scale: Vec3::new(depth, half - window_h / 2.0, 1.0),
+            rotation: Vec3::new(0.0, PI * 0.5, 0.0),
+            translation: Vec3::new(half, window_h / 4.0 + half / 2.0, z_mid) + offset,
             ..Default::default()
         },
-        Instance {
-            transform: instance::Transform {
-                scale: Vec3::new(depth, half - window_h / 2.0, 1.0),
-                rotation: Vec3::new(0.0, PI * 0.5, 0.0),
-                translation: Vec3::new(half, -window_h / 4.0 - half / 2.0, z_mid),
-                ..Default::default()
-            },
-            mesh: cube_id,
-            material: 1,
-            material_idx: 0,
+        mesh: cube_id,
+        material: 1,
+        material_idx: wall_lambert,
+        ..Default::default()
+    });
+
+    sb.add_instance(Instance {
+        transform: instance::Transform {
+            scale: Vec3::new(depth, half - window_h / 2.0, 1.0),
+            rotation: Vec3::new(0.0, PI * 0.5, 0.0),
+            translation: Vec3::new(half, -window_h / 4.0 - half / 2.0, z_mid) + offset,
             ..Default::default()
         },
-    ]);
-
-    let instances = Instances::new(device, instances);
-
-    // Make the BLAS & TLAS
-    let blases = meshes.into_iter().map(|m| blas::BLAS::new(m)).collect_vec();
-    let tlas = tlas::TLAS::new(&blases, &instances.instances);
-
-    let blas_data = blas::BLASData::new(device, blases);
-    let tlas_data = TLASData::new(device, tlas);
-
-    (
-        lambertian_data,
-        metallic_data,
-        dielectric_data,
-        emissive_data,
-        instances,
-        blas_data,
-        tlas_data,
-    )
+        mesh: cube_id,
+        material: 1,
+        material_idx: wall_lambert,
+        ..Default::default()
+    });
 }

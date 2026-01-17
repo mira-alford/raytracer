@@ -46,7 +46,9 @@ use crate::{
     mesh::Meshes,
     metallic::MetallicData,
     sample::Samples,
-    scenes::{Scene, SceneBuilder, boxes_scene, cornell_scene, grid_scene, sponza_scene},
+    scenes::{
+        Scene, SceneBuilder, boxes_scene, cornell_scene, grid_scene, sponza_scene, windows_scene,
+    },
     tlas::TLASData,
 };
 
@@ -148,6 +150,7 @@ impl State {
         boxes_scene(&mut sb);
         // cornell_scene(&mut sb);
         // grid_scene(&mut sb);
+        // windows_scene(&mut sb);
 
         let Scene {
             lambertian_data,
