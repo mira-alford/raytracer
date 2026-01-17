@@ -31,6 +31,7 @@ gltf = "1.4.1"
 itertools = "0.14.0"
 rand = "0.9.2"
 tobj = { version = "4.0.3", features = ["reordering"] }
+bevy_ecs = { version = "0.18.0", features = ["debug"] }
 
 [build-dependencies]
 wesl = "0.2.0"
