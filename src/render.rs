@@ -6,8 +6,15 @@ use crate::{
     app::BevyApp,
     pathtracer::{Pathtracer, PathtracerOutput},
     render_resources::{RenderDevice, RenderQueue, RenderSurface},
-    texture,
+    schedule,
 };
+
+pub fn initialize(app: &mut BevyApp) {
+    app.world.get_resource_or_init::<Schedules>().add_systems(
+        schedule::Update,
+        (render_sync_system, render_system.after(render_sync_system)),
+    );
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -66,11 +73,6 @@ pub struct RenderPhase {
     bind_group: wgpu::BindGroup,
 }
 
-pub fn initialize(app: &mut BevyApp) {
-    app.update
-        .add_systems((render_sync_system, render_system.after(render_sync_system)));
-}
-
 fn render_sync_system(
     mut commands: Commands,
     device: Res<RenderDevice>,
@@ -90,8 +92,7 @@ fn render_sync_system(
             commands.insert_resource(rp);
         }
 
-        // If there are multiple primaries just use the first... TODO later problem properly
-        // making all of this work lol
+        // If there are multiple primaries just use the first... TODO making all of this work properly is a later problem
         break;
     }
 }

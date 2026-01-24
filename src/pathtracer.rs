@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
-use wgpu::{TextureViewDescriptor, util::DeviceExt};
+use wgpu::util::DeviceExt;
 
-use crate::{app::BevyApp, dims::Dims, render_resources::RenderDevice};
+use crate::{app::BevyApp, render_resources::RenderDevice, schedule};
 
 #[derive(Component)]
 pub struct Pathtracer {
@@ -18,11 +18,13 @@ pub struct PathtracerOutput {
 }
 
 pub fn initialize(app: &mut BevyApp) {
-    app.startup.add_systems(pathtracer_init);
-    app.update.add_systems(pathtracer_output_sync_system);
+    app.world
+        .get_resource_or_init::<Schedules>()
+        .add_systems(schedule::Startup, setup_pathtracer)
+        .add_systems(schedule::Update, pathtracer_output_sync_system);
 }
 
-fn pathtracer_init(mut commands: Commands) {
+fn setup_pathtracer(mut commands: Commands) {
     commands.spawn(Pathtracer {
         is_primary: true,
         dims: (512, 512),

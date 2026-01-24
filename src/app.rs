@@ -1,107 +1,63 @@
-use core::f32;
-use std::{collections::HashSet, f32::consts::PI, sync::Arc};
+use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
 
-use bevy_ecs::{prelude::*, schedule::ScheduleLabel, system::SystemState};
-use glam::Vec3;
-use itertools::Itertools;
-use rand::Rng;
-use wgpu::{BufferUsages, include_spirv, util::DeviceExt};
-use winit::{
-    application::ApplicationHandler,
-    dpi::{LogicalPosition, PhysicalPosition},
-    event::{KeyEvent, WindowEvent},
-    event_loop::{ActiveEventLoop, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
-    window::Window,
-};
-
-use crate::{
-    blas::{self, BLASData},
-    camera,
-    dims::Dims,
-    extension::{self, Sphere},
-    instance::Instances,
-    lambertian::LambertianData,
-    logic, material,
-    mesh::Meshes,
-    metallic::MetallicData,
-    new_ray, path, queue, render,
-    sample::{self, Samples},
-    scenes::{
-        Scene, SceneBuilder, boxes_scene, cornell_scene, grid_scene, sponza_scene, windows_scene,
-    },
-    shadow,
-    tlas::TLASData,
-};
+use crate::schedule;
 
 pub struct BevyApp {
     pub world: World,
     pub startup_has_run: bool,
-    pub startup: Schedule,
-    pub update: Schedule,
 }
-
-#[derive(ScheduleLabel, Clone, Eq, PartialEq, Debug, Hash)]
-pub struct StartupSchedule;
-
-#[derive(ScheduleLabel, Clone, Eq, PartialEq, Debug, Hash)]
-pub struct UpdateSchedule;
 
 impl BevyApp {
     pub fn new() -> Self {
         let world = World::new();
 
-        let startup = Schedule::new(StartupSchedule);
-        let update = Schedule::new(UpdateSchedule);
-
         Self {
             world,
             startup_has_run: false,
-            startup,
-            update,
         }
     }
 
     pub fn run(&mut self) {
         if !self.startup_has_run {
-            self.startup.run(&mut self.world);
+            self.world.run_schedule(schedule::PreStartup);
+            self.world.run_schedule(schedule::Startup);
             self.startup_has_run = true;
         }
 
-        self.update.run(&mut self.world);
+        self.world.run_schedule(schedule::Update);
     }
 }
 
-#[derive(Resource)]
-pub struct State {
-    surface: wgpu::Surface<'static>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
-    is_surface_configured: bool,
-    paths: path::Paths,
-    samples: sample::Samples,
-    new_ray_queue: queue::Queue,
-    extension_queue: queue::Queue,
-    material_queues: Vec<queue::Queue>,
-    material_phases: Vec<material::Material>,
-    logic_phase: logic::LogicPhase,
-    render_phase: render::RenderPhase,
-    new_ray_phase: new_ray::NewRayPhase,
-    extension_phase: extension::ExtensionPhase,
-    shadow_phase: shadow::ShadowPhase,
-    instances: Instances,
-    blas_data: blas::BLASData,
-    tlas_data: TLASData,
-    camera: camera::Camera,
-    window: Arc<Window>,
-    dims: Dims,
-    keys_pressed: HashSet<KeyCode>,
-    // TODO: Abstract:
-    light_sample_bindgroup: wgpu::BindGroup,
-    light_sample_bindgroup_layout: wgpu::BindGroupLayout,
-    shadow_queue: queue::Queue,
-}
+// #[derive(Resource)]
+// pub struct State {
+//     surface: wgpu::Surface<'static>,
+//     device: wgpu::Device,
+//     queue: wgpu::Queue,
+//     config: wgpu::SurfaceConfiguration,
+//     is_surface_configured: bool,
+//     paths: path::Paths,
+//     samples: sample::Samples,
+//     new_ray_queue: queue::Queue,
+//     extension_queue: queue::Queue,
+//     material_queues: Vec<queue::Queue>,
+//     material_phases: Vec<material::Material>,
+//     logic_phase: logic::LogicPhase,
+//     render_phase: render::RenderPhase,
+//     new_ray_phase: new_ray::NewRayPhase,
+//     extension_phase: extension::ExtensionPhase,
+//     shadow_phase: shadow::ShadowPhase,
+//     instances: Instances,
+//     blas_data: blas::BLASData,
+//     tlas_data: TLASData,
+//     camera: camera::Camera,
+//     window: Arc<Window>,
+//     dims: Dims,
+//     keys_pressed: HashSet<KeyCode>,
+//     // TODO: Abstract:
+//     light_sample_bindgroup: wgpu::BindGroup,
+//     light_sample_bindgroup_layout: wgpu::BindGroupLayout,
+//     shadow_queue: queue::Queue,
+// }
 
 // #[derive(Resource)]
 // pub struct WGPUHandles {

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{app::BevyApp, winnit::WinitWindow};
+use crate::{app::BevyApp, schedule, winnit::WinitWindow};
 
 use bevy_ecs::prelude::*;
 use winit::dpi::PhysicalSize;
@@ -29,10 +29,12 @@ pub struct RenderSurface {
 }
 
 pub fn initialize(app: &mut BevyApp) {
-    app.startup.add_systems(initialize_renderer);
+    app.world
+        .get_resource_or_init::<Schedules>()
+        .add_systems(schedule::PreStartup, setup_renderer);
 }
 
-fn initialize_renderer(mut commands: Commands, window: Option<Res<WinitWindow>>) {
+fn setup_renderer(mut commands: Commands, window: Option<Res<WinitWindow>>) {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     // Configure rendering stuff:
@@ -57,10 +59,15 @@ fn initialize_renderer(mut commands: Commands, window: Option<Res<WinitWindow>>)
     limits.max_bind_groups = 8;
     limits.max_storage_buffer_binding_size = 402653184;
     limits.max_buffer_size = 402653184;
+    let required_features = wgpu::Features::empty()
+        .union(wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING)
+        .union(wgpu::Features::BUFFER_BINDING_ARRAY)
+        .union(wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY);
+
     let (device, queue) = rt
         .block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: None,
-            required_features: wgpu::Features::empty(),
+            required_features,
             experimental_features: wgpu::ExperimentalFeatures::disabled(),
             required_limits: limits,
             memory_hints: wgpu::MemoryHints::Performance,

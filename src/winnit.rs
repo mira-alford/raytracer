@@ -13,8 +13,9 @@ use winit::{
 };
 
 use crate::{
-    app::{BevyApp, State},
+    app::BevyApp,
     render_resources::{RenderDevice, RenderQueue, RenderSurface},
+    schedule,
 };
 
 #[derive(Message)]
@@ -135,7 +136,10 @@ impl ApplicationHandler for WinitApp {
         window.set_cursor_visible(false);
 
         // register some systems
-        self.bevy_app.update.add_systems(resize_system);
+        self.bevy_app
+            .world
+            .get_resource_or_init::<Schedules>()
+            .add_systems(schedule::Update, resize_system);
 
         // Prior to ever running we make sure there is a window resource:
         self.bevy_app

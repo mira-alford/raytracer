@@ -3,13 +3,14 @@ use winit::event_loop::EventLoop;
 use crate::{app::BevyApp, winnit::WinitApp};
 
 mod app;
-mod blas;
-mod bvh;
+mod binder;
+// mod blas;
+// mod bvh;
 mod camera;
 mod dielectric;
 mod dims;
 mod emissive;
-mod extension;
+// mod extension;
 mod instance;
 mod lambertian;
 mod logic;
@@ -24,9 +25,12 @@ mod render;
 mod render_resources;
 mod sample;
 mod scenes;
-mod shadow;
+// mod shadow;
 mod texture;
-mod tlas;
+mod threadpool;
+// mod tlas;
+mod schedule;
+mod transform;
 mod winnit;
 
 pub fn run() -> anyhow::Result<()> {
@@ -34,9 +38,14 @@ pub fn run() -> anyhow::Result<()> {
 
     let mut bevy_app = BevyApp::new();
 
+    threadpool::initialize(&mut bevy_app);
     render_resources::initialize(&mut bevy_app);
     render::initialize(&mut bevy_app);
     pathtracer::initialize(&mut bevy_app);
+    mesh::initialize(&mut bevy_app);
+    material::initialize(&mut bevy_app);
+    scenes::initialize(&mut bevy_app);
+    binder::initialize(&mut bevy_app);
 
     let event_loop = EventLoop::new()?;
     let mut app = WinitApp::new(bevy_app);
