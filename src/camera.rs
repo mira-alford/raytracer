@@ -1,3 +1,4 @@
+use bevy_ecs::component::Component;
 use wgpu::util::DeviceExt;
 
 #[repr(C)]
@@ -28,6 +29,7 @@ impl CameraData {
     }
 }
 
+#[derive(Component)]
 pub struct Camera {
     pub data: CameraData,
     pub uniform: wgpu::Buffer,

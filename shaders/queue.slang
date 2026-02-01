@@ -1,41 +1,37 @@
+// queue.slang
+//
+// Some helper functions for queue maintenance.
 module queue;
 
-public struct QueueHeader {
-  public uint readCounter;
-  public uint writeCounter;
-}
-
 public void queueReset(
-  RWStructuredBuffer<QueueHeader> qh
+  RWStructuredBuffer<int> qh
 ) {
-  qh[0].readCounter = 0;
-  qh[0].writeCounter = 0;
+  qh[0] = 0;
 }
 
-public int queuePush(
-  RWStructuredBuffer<QueueHeader> qh,
+public void queuePush(
+  RWStructuredBuffer<int> qh,
   RWStructuredBuffer<uint> qd,
   uint value
 ) {
-  uint index;
-  InterlockedAdd(qh[0].writeCounter, 1, index);
+  int index;
+  InterlockedAdd(qh[0], 1, index);
 
   qd[index] = value;
-  return index;
 }
 
 public int queueRead(
-  RWStructuredBuffer<QueueHeader> qh,
+  RWStructuredBuffer<int> qh,
   RWStructuredBuffer<uint> qd,
-  out uint outVal
 ) {
-  uint index;
-  outVal = -1;
-  InterlockedAdd(qh[0].readCounter, 1, index);
-  if (index > qh[0].writeCounter) {
+  int index;
+  InterlockedAdd(qh[0], -1, index);
+  index = index - 1;
+  if (index < 0) {
+    InterlockedMax(qh[0], 0);
     return -1;
   } else {
-    outVal = qd[index];
-    return index;
+    return int(qd[index]);
   }
 }
+

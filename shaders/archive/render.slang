@@ -1,4 +1,3 @@
-// render.slang
 module render;
 
 struct VertexInput {

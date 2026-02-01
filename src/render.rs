@@ -97,7 +97,7 @@ fn render_sync_system(
     }
 }
 
-fn render_system(
+pub fn render_system(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     query: Query<(&Pathtracer, &PathtracerOutput)>,

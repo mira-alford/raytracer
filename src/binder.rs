@@ -19,20 +19,20 @@ use crate::{
 };
 
 pub fn initialize(app: &mut BevyApp) {
-    app.world.insert_resource(PathTracerBindings::default());
+    app.world.insert_resource(SceneBindings::default());
     app.world
         .get_resource_or_init::<Schedules>()
         .add_systems(schedule::Update, binder_system);
 }
 
 #[derive(Resource, Default)]
-pub struct PathTracerBindings {
+pub struct SceneBindings {
     pub bind_group: Option<wgpu::BindGroup>,
     pub bind_group_layout: Option<wgpu::BindGroupLayout>,
 }
 
 #[derive(Resource)]
-struct BinderLocal {
+pub struct BinderLocal {
     tlas_cache: Option<wgpu::Buffer>,
     tlas_regenerate: bool,
 }
@@ -46,18 +46,116 @@ impl Default for BinderLocal {
     }
 }
 
-fn binder_system(
+pub fn binder_system(
     objects: Query<(Ref<Transform>, Ref<MeshId>, &MaterialId)>,
     removed_transforms: RemovedComponents<Transform>,
     removed_meshids: RemovedComponents<MeshId>,
     mesh_server: Res<MeshServer>,
     material_server: Res<MaterialServer>,
     device: Res<RenderDevice>,
-    queue: Res<RenderQueue>,
-    pto: Query<(&Pathtracer, &PathtracerOutput)>,
     mut binder_local: Local<BinderLocal>,
-    mut path_tracer_bindings: ResMut<PathTracerBindings>,
+    mut path_tracer_bindings: ResMut<SceneBindings>,
 ) {
+    let bind_group_layout = device
+        .0
+        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Pathtracer Bindgroup Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 8,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+    path_tracer_bindings.bind_group_layout = Some(bind_group_layout.clone());
+
     let Some(vertex_buffer) = mesh_server.vertex_buffer().as_ref() else {
         return;
     };
@@ -198,210 +296,48 @@ fn binder_system(
             usage: wgpu::BufferUsages::STORAGE,
         });
 
-    // Temporary shader test code:
-    let Ok(buffer) = pto.single() else {
-        return;
-    };
-
-    let bind_group_layout = device
-        .0
-        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Pathtracer Bindgroup Layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 7,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 8,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 9,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        });
-
     let bind_group = device.0.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("Pathtracer Bindgroup Descriptor"),
         layout: &bind_group_layout,
         entries: &[
             wgpu::BindGroupEntry {
                 binding: 0,
-                resource: buffer.1.source_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: vertex_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 2,
-                resource: index_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 3,
-                resource: blas_node_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 4,
-                resource: geometry_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 5,
-                resource: tlas_node_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 6,
-                resource: material_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 7,
-                resource: transform_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 8,
                 resource: instance_buffer.as_entire_binding(),
             },
             wgpu::BindGroupEntry {
-                binding: 9,
+                binding: 1,
+                resource: geometry_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: vertex_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: index_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 4,
+                resource: blas_node_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: material_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 6,
+                resource: transform_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 7,
+                resource: tlas_node_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 8,
                 resource: light_sources_buffer.as_entire_binding(),
             },
         ],
     });
 
     path_tracer_bindings.bind_group = Some(bind_group);
-    path_tracer_bindings.bind_group_layout = Some(bind_group_layout);
-
-    // let shader = device
-    //     .0
-    //     .create_shader_module(wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/magic.spv")));
-
-    // let pl_layout = device
-    //     .0
-    //     .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-    //         label: Some("magic_pl_layout"),
-    //         bind_group_layouts: &[&bind_group_layout],
-    //         push_constant_ranges: &[],
-    //     });
-
-    // let pl = device
-    //     .0
-    //     .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-    //         label: Some("magic_pl"),
-    //         layout: Some(&pl_layout),
-    //         module: &shader,
-    //         entry_point: Some("main"),
-    //         compilation_options: wgpu::PipelineCompilationOptions::default(),
-    //         cache: None,
-    //     });
-
-    // let mut encoder = device
-    //     .0
-    //     .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-    //         label: Some("Magic Encoder"),
-    //     });
-
-    // let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-    //     label: Some("CS Descriptor"),
-    //     ..Default::default()
-    // });
-
-    // compute_pass.set_pipeline(&pl);
-    // compute_pass.set_bind_group(0, Some(&bind_group), &[]);
-    // compute_pass.dispatch_workgroups(buffer.0.dims.0.div_ceil(8), buffer.0.dims.1.div_ceil(8), 1);
-
-    // drop(compute_pass);
-
-    // let command = encoder.finish();
-
-    // queue.0.submit([command]);
 }

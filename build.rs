@@ -44,13 +44,15 @@ fn main() {
     println!("cargo:rerun-if-changed=shaders");
 
     build_slang("render");
-    build_slang("logic");
-    build_slang("new_ray");
-    build_slang("extension");
-    build_slang("lambertian");
-    build_slang("metallic");
-    build_slang("dielectric");
-    build_slang("emissive");
-    build_slang("shadow");
-    build_slang("magic");
+    build_slang("sample");
+    build_slang("ray_extend");
+    // build_slang("logic");
+    // build_slang("new_ray");
+    // build_slang("extension");
+    // build_slang("lambertian");
+    // build_slang("metallic");
+    // build_slang("dielectric");
+    // build_slang("emissive");
+    // build_slang("shadow");
+    // build_slang("magic");
 }

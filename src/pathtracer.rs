@@ -1,7 +1,10 @@
 use bevy_ecs::prelude::*;
 use wgpu::util::DeviceExt;
 
-use crate::{app::BevyApp, render_resources::RenderDevice, schedule};
+use crate::{
+    app::BevyApp, camera::Camera, pathtracer_state::PathtracerState,
+    render_resources::RenderDevice, schedule,
+};
 
 #[derive(Component)]
 pub struct Pathtracer {
@@ -12,6 +15,8 @@ pub struct Pathtracer {
 
 #[derive(Component)]
 pub struct PathtracerOutput {
+    pub source_bind_group_layout: wgpu::BindGroupLayout,
+    pub source_bind_group: wgpu::BindGroup,
     pub source_buffer: wgpu::Buffer,
     pub out_texture: wgpu::Texture,
     pub out_sampler: wgpu::Sampler,
@@ -24,15 +29,18 @@ pub fn initialize(app: &mut BevyApp) {
         .add_systems(schedule::Update, pathtracer_output_sync_system);
 }
 
-fn setup_pathtracer(mut commands: Commands) {
-    commands.spawn(Pathtracer {
-        is_primary: true,
-        dims: (512, 512),
-        threads: 512 * 512,
-    });
+fn setup_pathtracer(mut commands: Commands, device: Res<RenderDevice>) {
+    commands.spawn((
+        Pathtracer {
+            is_primary: true,
+            dims: (512, 512),
+            threads: 512 * 512,
+        },
+        Camera::new(&device.0, Some("Camera")),
+    ));
 }
 
-fn pathtracer_output_sync_system(
+pub fn pathtracer_output_sync_system(
     mut commands: Commands,
     device: Res<RenderDevice>,
     query: Query<(Entity, &Pathtracer), Changed<Pathtracer>>,
@@ -40,7 +48,8 @@ fn pathtracer_output_sync_system(
     for (id, pt) in query.iter() {
         commands
             .entity(id)
-            .insert(PathtracerOutput::new(&device.0, pt.dims));
+            .insert(PathtracerOutput::new(&device.0, pt.dims))
+            .insert(PathtracerState::new(&device.0, pt.dims, pt.threads));
     }
 }
 
@@ -79,7 +88,33 @@ impl PathtracerOutput {
             ..Default::default()
         });
 
+        let source_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Output Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let source_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Output Bind Group"),
+            layout: &source_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: source_buffer.as_entire_binding(),
+            }],
+        });
+
         Self {
+            source_bind_group_layout,
+            source_bind_group,
             source_buffer,
             out_texture,
             out_sampler,
