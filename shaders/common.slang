@@ -123,8 +123,8 @@ public struct HitRecord {
   // A fake vertex which stores the interpolated position, uv and norm
   // of the actually hit triangle.
   public Vertex vert;
-  public uint3 instance_id;
   public uint3 triangle_id;
+  public uint instance_id;
   public uint front_face;
 }
 

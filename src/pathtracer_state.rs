@@ -19,9 +19,10 @@ pub struct Vertex {
 #[derive(Copy, Clone, Debug, bytemuck::Zeroable)]
 pub struct HitRecord {
     pub vert: Vertex,
-    pub instance_id: UVec4,
     pub triangle_id: UVec4,
+    pub instance_id: u32,
     pub front_face: u32,
+    pub _pad: [u32; 2],
 }
 
 #[repr(C)]

@@ -21,9 +21,9 @@ fn simple_scene(
     mut material_server: ResMut<MaterialServer>,
 ) {
     let cube_mesh = mesh_server.load_mesh(MeshDescriptor::Cube);
-    let rect_mesh = mesh_server.load_mesh(MeshDescriptor::Rect);
+    // let rect_mesh = mesh_server.load_mesh(MeshDescriptor::Rect);
     let material = material_server.add_material(Material {
-        colour: Vec4::new(1.0, 1.0, 1.0, 1.0),
+        colour: Vec4::new(1.0, 0.5, 1.0, 1.0),
         emissive: Vec4::ZERO,
         metallic: 0.0,
         roughness: 1.0,
@@ -34,20 +34,20 @@ fn simple_scene(
         Transform {
             scale: Vec4::ONE,
             rotation: Vec4::ZERO,
-            translation: Vec4::ZERO,
+            translation: Vec4::new(0.0, 0.0, 2.0, 0.0),
         },
         material,
         cube_mesh,
     ));
-    commands.spawn((
-        Transform {
-            scale: Vec4::ONE,
-            rotation: Vec4::ZERO,
-            translation: Vec4::ZERO,
-        },
-        material,
-        rect_mesh,
-    ));
+    // commands.spawn((
+    //     Transform {
+    //         scale: Vec4::ONE,
+    //         rotation: Vec4::ZERO,
+    //         translation: Vec4::ZERO,
+    //     },
+    //     material,
+    //     rect_mesh,
+    // ));
 }
 
 // use core::f32;

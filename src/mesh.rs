@@ -210,6 +210,7 @@ impl MeshServer {
             .enumerate()
             .filter_map(|(id, m)| m.as_ref().map(|m| (id, m)))
         {
+            dbg!(mesh_id);
             let Mesh {
                 positions,
                 normals,
