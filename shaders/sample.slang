@@ -51,8 +51,8 @@ void accumulateSample(uint idx, uint id) {
 
   float3 rad = float3(sample_sum.Load3(s.sample_id * sizeof(uint4))) / float(1000 * sample_count);
   
-  // rad *= exp2(-6.1); // TODO: compute this dynamically :)
-  // rad = acesToneMap(rad);
+  rad *= exp2(-2.5); // TODO: compute this dynamically :)
+  rad = acesToneMap(rad);
   output[out_idx] = packRgb(rad);
 }
 
@@ -68,7 +68,7 @@ void spawnSample(uint idx) {
   let sample_source = sample_sources[sample_idx];
 
   // Initialize sample:
-  s.bounces = 4;
+  s.bounces = 128;
   s.rad = float3(0);
   s.sample_id = sample_idx;
   s.throughput = float3(1.0);

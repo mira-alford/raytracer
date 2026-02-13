@@ -13,8 +13,17 @@ public struct Material {
     public float4 emissive;                 // 0.0..=1.0 rgba
     public float metallic;                  // 0.0..=1.0
     public float roughness;                 // 0.0..=1.0
-    public uint _pad0;
-    public uint _pad1;
+    public float ior;
+    public float transmission;              // 0.0..=1.0
+}
+
+public struct MaterialSample {
+  public float4 colour;
+  public float4 emissive;
+  public float metallic;
+  public float roughness;
+  public float ior;
+  public float transmission;
 }
 
 public struct Vertex {

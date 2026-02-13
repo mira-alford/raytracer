@@ -33,7 +33,7 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
  
   if (!tlasFirstHit(*ray, hit.instance_id, hit.triangle_id, t, h)) {
     // No hit, queue for skybox?
-    s.rad = s.throughput * float3(1.0);
+    s.rad += s.throughput * float3(10.0);
     queuePush(terminate_qh, terminate_qd, idx);
     return;
   }

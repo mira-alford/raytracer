@@ -10,7 +10,7 @@ pub fn initialize(app: &mut BevyApp) {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default, Component)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Component)]
 pub struct Material {
     pub colour_texture: u32,             // 0 -> use base colour
     pub emissive_texture: u32,           // 0 -> use base emissive
@@ -20,8 +20,25 @@ pub struct Material {
     pub emissive: Vec4,                  // 0.0..=1.0 rgba
     pub metallic: f32,                   // 0.0..=1.0
     pub roughness: f32,                  // 0.0..=1.0
-    pub pad_0: u32,
-    pub pad_1: u32,
+    pub ior: f32,
+    pub transmission: f32, // 0.0..=1.0
+}
+
+impl Default for Material {
+    fn default() -> Self {
+        Self {
+            colour_texture: Default::default(),
+            emissive_texture: Default::default(),
+            metallic_roughness_texture: Default::default(),
+            normal_texture: Default::default(),
+            colour: Default::default(),
+            emissive: Default::default(),
+            metallic: Default::default(),
+            roughness: Default::default(),
+            ior: 1.5,
+            transmission: Default::default(),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Component, Debug, Hash, Eq, PartialEq)]

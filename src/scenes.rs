@@ -32,6 +32,22 @@ fn spawn_cornell(
         ..Default::default()
     });
 
+    let mirror_material = material_server.add_material(Material {
+        colour: Vec4::new(1.0, 1.0, 1.0, 0.0),
+        emissive: Vec4::ZERO,
+        metallic: 1.0,
+        roughness: 0.01,
+        ..Default::default()
+    });
+
+    let light_material = material_server.add_material(Material {
+        colour: Vec4::new(1.0, 1.0, 1.0, 0.0),
+        emissive: Vec4::new(1.0, 1.0, 1.0, 0.0) * 20.0,
+        metallic: 0.0,
+        roughness: 1.0,
+        ..Default::default()
+    });
+
     let green_material = material_server.add_material(Material {
         colour: Vec4::new(0.4, 0.8, 0.4, 1.0),
         emissive: Vec4::ZERO,
@@ -62,15 +78,26 @@ fn spawn_cornell(
     ));
 
     // Ceiling:
-    commands.spawn((
-        Transform {
-            scale: Vec4::new(dims.x, dims.z, 1.0, 0.0),
-            rotation: Vec4::new(-f32::consts::FRAC_PI_2, 0.0, 0.0, 0.0),
-            translation: Vec4::new(0.0, dims.y / 2.0, 0.0, 1.0) + pos.extend(0.0),
-        },
-        gray_material,
-        rect_mesh,
-    ));
+    // commands.spawn((
+    //     Transform {
+    //         scale: Vec4::new(dims.x, dims.z, 1.0, 0.0),
+    //         rotation: Vec4::new(-f32::consts::FRAC_PI_2, 0.0, 0.0, 0.0),
+    //         translation: Vec4::new(0.0, dims.y / 2.0, 0.0, 1.0) + pos.extend(0.0),
+    //     },
+    //     gray_material,
+    //     rect_mesh,
+    // ));
+
+    // Ceiling Light:
+    // commands.spawn((
+    //     Transform {
+    //         scale: Vec4::new(dims.x * 0.2, dims.z * 0.2, 1.0, 0.0),
+    //         rotation: Vec4::new(-f32::consts::FRAC_PI_2, 0.0, 0.0, 0.0),
+    //         translation: Vec4::new(0.0, dims.y / 2.0 - 0.01, 0.0, 1.0) + pos.extend(0.0),
+    //     },
+    //     light_material,
+    //     rect_mesh,
+    // ));
 
     // Back Wall:
     commands.spawn((
@@ -115,10 +142,17 @@ fn simple_scene(
     // let rect_mesh = mesh_server.load_mesh(MeshDescriptor::Rect);
     let dragon_mesh = mesh_server.load_mesh(MeshDescriptor::TOBJ("./assets/dragon.obj".to_owned()));
     let gold_material = material_server.add_material(Material {
-        colour: Vec4::new(1.0, 0.8, 0.0, 1.0),
-        emissive: Vec4::ZERO,
-        metallic: 1.0,
-        roughness: 0.0,
+        colour: Vec4::new(1.0, 0.99, 0.0, 1.0),
+        metallic: 0.0,
+        roughness: 0.4,
+        ..Default::default()
+    });
+    let glass_material = material_server.add_material(Material {
+        colour: Vec4::new(1.0, 1.0, 1.0, 1.0),
+        metallic: 0.2,
+        roughness: 0.1,
+        transmission: 0.0,
+        ior: 1.5,
         ..Default::default()
     });
     let gray_material = material_server.add_material(Material {
@@ -140,9 +174,11 @@ fn simple_scene(
         Transform {
             scale: Vec4::ONE,
             rotation: Vec4::ZERO,
-            translation: Vec4::new(0.0, -0.4, 2.75, 0.0),
+            translation: Vec4::new(0.0, -0.89, 2.75, 0.0),
         },
-        gold_material,
+        // gold_material,
+        glass_material,
+        // cube_mesh,
         dragon_mesh,
     ));
     // commands.spawn((
