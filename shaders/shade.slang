@@ -13,43 +13,69 @@ import pathtracer;
 import random;
 import queue;
 import bvh;
+import math;
+import ggx;
 
-  // public float4 brdf(float3 wi, float3 wo, float3 n);
+float pow2(float a) {
+  return a * a;
+}
 
 float3 conductorFresnel(float3 wi, float3 wo, float3 f0, float3 bsdf) {
   float3 h = normalize(wo + wi); // half vector
-  return bsdf * (f0 + (1.0 - f0) * pow((1.0 - abs(dot(wo, h))), 5.0));
+  return bsdf * schlick3(abs(dot(wo, h)), f0);
 }
 
-float3 mix(float3 dielectric_brdf, float3 metallic_brdf, float metallic) {
-  return (1.0 - metallic) * dielectric_brdf + metallic * metallic_brdf;
-}
-
-float3 fresnelMix(float3 wi, float3 wo, float ior, float3 base, float3 layer) {
+float blinnPhongDist(float3 wi, float3 wo, float3 n, float alpha) {
   float3 h = normalize(wo + wi); // half vector
-  float f0 = pow((1.0 - ior) / (1.0 + ior), 2.0);
-  float fr = f0 + (1.0 - f0) * pow(1.0 - abs(dot(wo, h)), 5.0);
-  return mix(base, layer, fr);
+  return (alpha + 2.0) * pow(abs(dot(n, h)), alpha) / (2.0 * float.getPi());
 }
 
-float heaviside(float x) {
-  return select(x.x > 0.0, 1.0, 0.0);
+float beckmannDist(float3 wi, float3 wo, float3 n, float m) {
+  float3 h = normalize(wo + wi); // half vector
+  float d = exp(
+    (pow(abs(dot(n, h)), 2.0) - 1.0)
+    / (pow(m, 2.0) * pow(abs(dot(n, h)), 2.0))
+  );
+  d /= float.getPi() * pow(m, 2.0) * pow(abs(dot(n, h)), 4.0);
+  return d;
+}
+
+float cookTorranceGeom(float3 wi, float3 wo, float3 n) {
+  float3 h = normalize(wo + wi); // half vector
+  float g1 = 2.0 * dot(n, h) * dot(n, wo) / dot(wo, h);
+  float g2 = 2.0 * dot(n, h) * dot(n, wi) / dot(wo, h);
+
+  return min(min(1.0, g1), g2);
+}
+
+float smithGeom(float3 wi, float3 wo, float3 n, float alpha) {
+  // float3 h = normalize(wo + wi); // half vector
+  // float a2 = alpha * alpha;
+
+  // float nwi2 = pow(dot(n, wi), 2.0);
+  // float nwo2 = pow(dot(n, wo), 2.0);
+  // float g = heaviside(dot(h, wi)) / (abs(dot(n, wi)) + sqrt(a2 + (1.0 - a2) * nwi2));
+  // g *= heaviside(dot(h, wo)) / (abs(dot(n, wo)) + sqrt(a2 + (1.0 - a2) * nwo2));
+  // g *= 4.0 * abs(dot(n, wi)) * abs(dot(n, wo));
+  
+  // return g;
+
+  return GGXSmithGeom(wi, wo, n, alpha);
+}
+
+float microfacetBRDF(float3 wi, float3 wo, float3 n, float Fr, float G, float D) {
+  // Fr: fresnel term
+  // G: geometric attenuation term
+  // D: microfacet distribution term
+  float won = dot(n, wo);
+  float win = dot(n, wi);
+  if (win <= 0.0 || won <= 0.0) return 0.0;
+  return Fr * G * D / (4.0 * won * win);
 }
 
 // Based on https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#specular-brdf
 float specularBRDF(float3 wi, float3 wo, float3 n, float alpha) {
-  float3 h = normalize(wo + wi); // half vector
-  float a2 = alpha * alpha;
-
-  float d = a2 * heaviside(dot(n, h));
-  d /= float.getPi() * pow(pow(dot(n, h), 2.0) * (a2-1.0) + 1.0, 2.0);
-
-  float nwi2 = pow(dot(n, wi), 2.0);
-  float nwo2 = pow(dot(n, wo), 2.0);
-  float v = heaviside(dot(h, wi)) / (abs(dot(n, wi)) + sqrt(a2 + (1.0 - a2) * nwi2));
-  v *= heaviside(dot(h, wo)) / (abs(dot(n, wo)) + sqrt(a2 + (1.0 - a2) * nwo2));
-
-  return v * d;
+  return microfacetBRDF(wi, wo, n, 1.0, smithGeom(wi, wo, n, alpha), GGXDist(wi, wo, n, alpha));
 }
 
 float3 diffuseBRDF(float3 colour) {
@@ -61,27 +87,26 @@ float3 specularBTDF(float3 wi, float3 wo, float3 n, float alpha) {
   float a2 = alpha * alpha;
 
   float3 Dt = a2 * heaviside(dot(n, ht));
-  Dt /= float.getPi() * pow((pow(dot(n, ht), 2.0) * (a2 - 1.0) + 1.0), 2.0);
+  Dt /= float.getPi() * pow((pow(abs(dot(n, ht)), 2.0) * (a2 - 1.0) + 1.0), 2.0);
 
   float3 Vt = heaviside(dot(ht, wi) / dot(n, wi));
   Vt *= heaviside(dot(ht, wo) / dot(n, wo));
-  Vt /= abs(dot(n, wi)) + sqrt(a2 + (1.0 - a2)) * pow(dot(n, wi), 2.0);
-  Vt /= abs(dot(n, wo)) + sqrt(a2 + (1.0 - a2)) * pow(dot(n, wo), 2.0);
+  Vt /= abs(dot(n, wi)) + sqrt(a2 + (1.0 - a2)) * pow(abs(dot(n, wi)), 2.0);
+  Vt /= abs(dot(n, wo)) + sqrt(a2 + (1.0 - a2)) * pow(abs(dot(n, wo)), 2.0);
 
   return Vt * Dt;
 }
 
 // Based on https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#metal-brdf-and-dielectric-brdf
 float3 dielectricBRDF(float3 wi, float3 wo, float3 n, MaterialSample ms) {
-  float3 h = normalize(wo + wi); // half vector
   return fresnelMix(
     wi, wo, ms.ior,
-    mix(
+    // mix(
       diffuseBRDF(ms.colour.rgb),
-      specularBTDF(wi, wo, n, pow(ms.roughness, 2.0)) * ms.colour.rgb,
-      ms.transmission
-    ),
-    specularBRDF(wi, wo, n, pow(ms.roughness, 2.0)),
+      // specularBTDF(wi, wo, n, pow(ms.roughness, 2.0)) * ms.colour.rgb,
+      // ms.transmission
+    // ),
+    specularBRDF(wi, wo, n, max(pow(ms.roughness, 2.0),1e-4)),
   );
 }
 
@@ -90,7 +115,7 @@ float3 metallicBRDF(float3 wi, float3 wo, float3 n, MaterialSample ms) {
   float3 h = normalize(wo + wi); // half vector
   return conductorFresnel(
     wi, wo, ms.colour.rgb,
-    specularBRDF(wi, wo, n, pow(ms.roughness, 2.0))
+    specularBRDF(wi, wo, n, max(pow(ms.roughness, 2.0),1e-4))
   );
 }
 
@@ -143,12 +168,49 @@ float cosineHemispherePDF(float3 wi, float3 n) {
   return abs(dot(wi, n)) / float.getPi();
 }
 
+float3 fresnelBlendSample(float3 wo, float3 n, MaterialSample ms, int rng) {
+  let f0 = mix(pow(abs((1.0 - ms.ior) / (1.0 + ms.ior)), 2.0), ms.colour.rgb, ms.metallic);
+  let fr = schlick3(abs(dot(wo, n)), f0);
+  let p_spec = max(fr.r, max(fr.g, fr.b));
 
-float3 metallicSample(float3 wo, float3 n, float roughness, int rng) {
-  float3 ref = reflect(wo, n);
-  float3 dir = unitSphereSample(rng) * roughness;
-  float3 wi = ref + dir;
-  return normalize(select(length(wi) < 1e-6, dir, wi));
+  let kd = (1.0 - p_spec) * (1.0 - ms.metallic); // diffuse weight
+  let ks = p_spec; // specular weight
+
+  let sum = kd + ks;
+ 
+  float c_specular = select(sum > 0, ks / sum, 1);
+  float c_diffuse = select(sum > 0, kd / sum, 0);
+  
+  float3 wi;
+  if (random_gen(randoms, rng) <= c_specular) {
+    wi = GGXSample(wo, n, max(pow(ms.roughness, 2), 1e-4), rng);
+  } else {
+    wi = cosineHemisphereSample(n, rng);
+  }
+
+  return wi;
+}
+
+float fresnelBlendPDF(float3 wi, float3 wo, float3 n, MaterialSample ms) {
+  let f0 = mix(pow(abs((1.0 - ms.ior) / (1.0 + ms.ior)), 2.0), ms.colour.rgb, ms.metallic);
+  // let f0 = mix(float3(0.04), ms.colour.rgb, ms.metallic);
+  let fr = schlick3(abs(dot(wo, n)), f0);
+  let p_spec = max(fr.r, max(fr.g, fr.b));
+
+  let kd = (1.0 - p_spec) * (1.0 - ms.metallic); // diffuse weight
+  let ks = p_spec; // specular weight
+
+  let sum = kd + ks;
+
+  float c_specular = select(sum > 0, ks / sum, 1);
+  float c_diffuse = select(sum > 0, kd / sum, 0);
+
+  float pdf_ggx = GGXPDF(wi, wo, n, max(ms.roughness * ms.roughness, 1e-4));
+  float pdf_diffuse = cosineHemispherePDF(wi, n);
+  float pdf_mix = c_specular * pdf_ggx + c_diffuse * pdf_diffuse;
+
+  return pdf_mix;
+  
 }
 
 [shader("compute")]
@@ -162,59 +224,53 @@ void shadeMain(uint3 threadId : SV_DispatchThreadID) {
   let s = &samples[idx];
   let h = &extension_hit_records[idx];
   let ray = &extension_rays[idx];
-  let wo = ray.dir;
+  let wo = -ray.dir;
 
   Instance instance = instances[h.instance_id];
 
   let mat = materials[instance.material];
-  MaterialSample ms = MaterialSample(mat.colour, mat.emissive, mat.metallic, mat.roughness, mat.ior, mat.transmission);
+  MaterialSample ms = MaterialSample(mat.colour, mat.emissive, mat.metallic, max(mat.roughness, 1e-4), mat.ior, mat.transmission);
+  ms.ior = 1.5;
 
   s.rad += s.throughput * mat.emissive.rgb;
   
   float3 n = h.vert.normal.xyz;
   n *= h.front_face != 0 ? 1.0 : -1.0;
 
-  float3 diffuse_sample = cosineHemisphereSample(n, idx);
-  float3 metallic_sample = metallicSample(wo, n, ms.roughness, idx);
+  float3 wi;
+  float pdf;
 
-  let refraction_ratio = h.front_face == 0 ? (1.0 / ms.ior) : (ms.ior);
-  float3 transmission_sample = refract(wo, n, refraction_ratio);
-
-  float diffuse_pdf = cosineHemispherePDF(diffuse_sample, n);
-  float metallic_pdf = cosineHemispherePDF(metallic_sample, n);
-  float transmission_pdf = cosineHemispherePDF(transmission_sample, n);
-
-  float sum_of_p = (diffuse_pdf + metallic_pdf + transmission_pdf);
-  float diffuse_weight = diffuse_pdf / sum_of_p;
-  float metallic_weight = metallic_pdf / sum_of_p;
-  float transmission_weight = diffuse_weight / sum_of_p;
-
-  float3 wi = cosineHemisphereSample(n, idx);
-  float pdf = cosineHemispherePDF(wi, n);
+  // float fr = fresnel(abs(dot(wo, n)), ms.ior);
+  // float w_gg = ms.metallic * (1.0 - r2) + (1.0 - ms.metallic) * fr * (1.0 - r2);
+  // float w_gg = ms.metallic * (1.0 - ms.roughness);
+  // float w_gg = 0.9 * ms.metallic;
+  float w_gg = 0.5;
+  float w_df = 1.0 - w_gg;
+  int tag = 0;
+  if (random_gen(randoms, idx) <= w_gg) {
+    tag = 1;
+    wi = GGXSample(wo, n, ms.roughness, idx);
+  } else {
+    wi = cosineHemisphereSample(n, idx);
+  }
+  pdf = 0.0;
+  pdf += cosineHemispherePDF(wi, n) * w_df;
+  pdf += GGXPDF(wi, wo, n, ms.roughness) * w_gg;
+ 
   float weight = 1.0;
-
-  // float3 wi;
-  // float pdf;
-  // float weight;
-  // if (random_gen(randoms, idx) < ms.transmission) {
-  //   wi = transmission_sample;
-  //   weight = transmission_weight;
-  //   pdf = transmission_pdf * 0.06;
-  // } else if (random_gen(randoms, idx) <= ms.metallic) {
-  //   wi = metallic_sample;
-  //   weight = metallic_weight;
-  //   pdf = metallic_pdf;
-  // } else {
-  //   wi = diffuse_sample;
-  //   weight = diffuse_weight;
-  //   pdf = diffuse_pdf;
-  // }
 
   ray.dir = wi;
   ray.pos = h.vert.position.xyz;
   
-  s.throughput *= material(wi, wo, n, ms) * abs(dot(n, wi)) * weight / pdf;
-  s.bounces -= 1;
+  float3 brdf = material(wi, wo, n, ms);
+
+  if (pdf > 1e-5) {
+    s.throughput *= brdf * abs(dot(n, wi)) * weight / pdf;
+    s.bounces -= 1;
+  } else {
+    s.throughput *= 0.0;
+    s.bounces = 0;
+  }
 
   if (s.bounces == 0) {
     queuePush(terminate_qh, terminate_qd, idx);

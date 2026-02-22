@@ -51,7 +51,7 @@ void accumulateSample(uint idx, uint id) {
 
   float3 rad = float3(sample_sum.Load3(s.sample_id * sizeof(uint4))) / float(1000 * sample_count);
   
-  rad *= exp2(-2.5); // TODO: compute this dynamically :)
+  rad *= exp2(-4.0); // TODO: compute this dynamically :)
   rad = acesToneMap(rad);
   output[out_idx] = packRgb(rad);
 }

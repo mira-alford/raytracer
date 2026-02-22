@@ -3,18 +3,48 @@ use std::f32;
 use crate::{
     app::BevyApp,
     material::{Material, MaterialServer},
-    mesh::{MeshDescriptor, MeshServer},
+    mesh::{MeshDescriptor, MeshId, MeshServer},
     schedule,
     transform::Transform,
 };
 
 use bevy_ecs::prelude::*;
-use glam::{Vec3, Vec4};
+use glam::{UVec2, Vec2, Vec3, Vec3Swizzles, Vec4};
+use itertools::Itertools;
 
 pub fn initialize(app: &mut BevyApp) {
     app.world
         .get_resource_or_init::<Schedules>()
         .add_systems(schedule::Startup, simple_scene);
+}
+
+fn metallic_roughness_grid(
+    commands: &mut Commands,
+    mesh_server: &mut ResMut<MeshServer>,
+    material_server: &mut ResMut<MaterialServer>,
+    dims: UVec2,
+    cell_size: Vec2,
+    shift: Vec3,
+    mesh: MeshId,
+) {
+    for (i, j) in (0..=dims.x).cartesian_product(0..=dims.y) {
+        let mat = material_server.add_material(Material {
+            colour: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            metallic: (i as f32) / (dims.x as f32),
+            roughness: (j as f32) / (dims.y as f32),
+            ..Default::default()
+        });
+
+        let transform = Transform {
+            scale: Vec4::new(1.0, 1.0, 1.0, 0.0),
+            rotation: Vec4::new(0.0, 0.0, 0.0, 0.0),
+            translation: Vec4::new(i as f32 * cell_size.x, 0.0, j as f32 * cell_size.y, 1.0)
+                + shift.extend(0.0)
+                - (dims.as_vec2() * cell_size / 2.0).extend(0.0).xzyz(),
+        };
+
+        commands.spawn((transform, mat, mesh));
+    }
 }
 
 fn spawn_cornell(
@@ -23,6 +53,8 @@ fn spawn_cornell(
     material_server: &mut ResMut<MaterialServer>,
     dims: Vec3,
     pos: Vec3,
+    with_light: bool,
+    with_ceil: bool,
 ) {
     let gray_material = material_server.add_material(Material {
         colour: Vec4::new(0.8, 0.8, 0.8, 1.0),
@@ -42,7 +74,7 @@ fn spawn_cornell(
 
     let light_material = material_server.add_material(Material {
         colour: Vec4::new(1.0, 1.0, 1.0, 0.0),
-        emissive: Vec4::new(1.0, 1.0, 1.0, 0.0) * 20.0,
+        emissive: Vec4::new(1.0, 1.0, 0.0, 0.0) * 200.0,
         metallic: 0.0,
         roughness: 1.0,
         ..Default::default()
@@ -78,27 +110,29 @@ fn spawn_cornell(
     ));
 
     // Ceiling:
-    // commands.spawn((
-    //     Transform {
-    //         scale: Vec4::new(dims.x, dims.z, 1.0, 0.0),
-    //         rotation: Vec4::new(-f32::consts::FRAC_PI_2, 0.0, 0.0, 0.0),
-    //         translation: Vec4::new(0.0, dims.y / 2.0, 0.0, 1.0) + pos.extend(0.0),
-    //     },
-    //     gray_material,
-    //     rect_mesh,
-    // ));
-
+    if with_ceil {
+        commands.spawn((
+            Transform {
+                scale: Vec4::new(dims.x, dims.z, 1.0, 0.0),
+                rotation: Vec4::new(-f32::consts::FRAC_PI_2, 0.0, 0.0, 0.0),
+                translation: Vec4::new(0.0, dims.y / 2.0, 0.0, 1.0) + pos.extend(0.0),
+            },
+            gray_material,
+            rect_mesh,
+        ));
+    }
     // Ceiling Light:
-    // commands.spawn((
-    //     Transform {
-    //         scale: Vec4::new(dims.x * 0.2, dims.z * 0.2, 1.0, 0.0),
-    //         rotation: Vec4::new(-f32::consts::FRAC_PI_2, 0.0, 0.0, 0.0),
-    //         translation: Vec4::new(0.0, dims.y / 2.0 - 0.01, 0.0, 1.0) + pos.extend(0.0),
-    //     },
-    //     light_material,
-    //     rect_mesh,
-    // ));
-
+    if with_light {
+        commands.spawn((
+            Transform {
+                scale: Vec4::new(dims.x * 0.2, dims.z * 0.2, 1.0, 0.0),
+                rotation: Vec4::new(-f32::consts::FRAC_PI_2, 0.0, 0.0, 0.0),
+                translation: Vec4::new(0.0, dims.y / 2.0 - 0.01, 0.0, 1.0) + pos.extend(0.0),
+            },
+            light_material,
+            rect_mesh,
+        ));
+    }
     // Back Wall:
     commands.spawn((
         Transform {
@@ -167,20 +201,36 @@ fn simple_scene(
         &mut commands,
         &mut mesh_server,
         &mut material_server,
-        Vec3::ONE * 3.0,
-        Vec3::new(0.0, 0.0, 3.0),
+        Vec3::new(20.0, 5.0, 20.0),
+        Vec3::new(0.0, 0.0, 12.0),
+        false,
+        false,
     );
-    commands.spawn((
-        Transform {
-            scale: Vec4::ONE,
-            rotation: Vec4::ZERO,
-            translation: Vec4::new(0.0, -0.89, 2.75, 0.0),
-        },
-        // gold_material,
-        glass_material,
-        // cube_mesh,
-        dragon_mesh,
-    ));
+
+    // let mr_mesh = mesh_server.load_mesh(MeshDescriptor::Sphere(4));
+    // let mr_mesh = mesh_server.load_mesh(MeshDescriptor::TOBJ("./assets/dragon.obj".to_owned()));
+    let mr_mesh = mesh_server.load_mesh(MeshDescriptor::TOBJ("./assets/suzanne.obj".to_owned()));
+    metallic_roughness_grid(
+        &mut commands,
+        &mut mesh_server,
+        &mut material_server,
+        UVec2::new(4, 4),
+        Vec2::splat(3.25),
+        Vec3::new(0.0, 0.0, 12.0),
+        mr_mesh,
+    );
+
+    // commands.spawn((
+    //     Transform {
+    //         scale: Vec4::ONE,
+    //         rotation: Vec4::ZERO,
+    //         translation: Vec4::new(0.0, -0.89, 2.75, 0.0),
+    //     },
+    //     // gold_material,
+    //     glass_material,
+    //     // cube_mesh,
+    //     dragon_mesh,
+    // ));
     // commands.spawn((
     //     Transform {
     //         scale: Vec4::new(3.0, 0.5, 3.0, 1.0),

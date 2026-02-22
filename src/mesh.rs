@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use bevy_ecs::prelude::*;
 use crossbeam::channel::bounded;
@@ -53,6 +56,7 @@ pub enum MeshDescriptor {
     TOBJ(String),
     Rect,
     Cube,
+    Sphere(usize),
 }
 
 pub struct MeshData {
@@ -127,6 +131,7 @@ impl MeshLoading {
                     }
                     MeshDescriptor::Rect => Mesh::rect(),
                     MeshDescriptor::Cube => Mesh::cube(),
+                    MeshDescriptor::Sphere(n) => Mesh::sphere(*n),
                 };
 
                 let blas = BLAS::new(mesh);
@@ -533,5 +538,95 @@ impl Mesh {
             normals,
             faces,
         }
+    }
+
+    fn subdivide(self) -> Self {
+        let Self {
+            positions,
+            normals,
+            faces,
+        } = self;
+
+        let mut vertex_map = BTreeMap::new();
+        let mut new_faces = Vec::new();
+        let mut new_positions = Vec::new();
+        let mut new_normals = Vec::new();
+
+        // Push all of the old vertices onto the new one:
+        for face in &faces {
+            for i in face.xyz().to_array() {
+                vertex_map.entry((i, i)).or_insert(new_positions.len());
+                new_positions.push(positions[i as usize]);
+                new_normals.push(normals[i as usize]);
+            }
+        }
+
+        for face in &faces {
+            // Go through the three edges:
+            for (a, b) in [(face.x, face.y), (face.x, face.z), (face.y, face.z)] {
+                // Map a and b to their new index:
+                let am = vertex_map[&(a, a)];
+                let bm = vertex_map[&(b, b)];
+                if vertex_map.contains_key(&(a, b)) {
+                    // Already added this new vertex
+                    continue;
+                }
+
+                // Create an (a,b) in the mapping so this vertex can be reused if the edge is
+                vertex_map.insert((a, b), new_positions.len());
+                vertex_map.insert((b, a), new_positions.len());
+                let _cm = vertex_map[&(a, b)];
+
+                // Get the center position and normal for the edge
+                let cp = (new_positions[am] + new_positions[bm]) / 2.0;
+                let cn = (new_normals[am] + new_normals[bm]) / 2.0;
+
+                // Add those to new positions, normals
+                new_positions.push(cp);
+                new_normals.push(cn);
+            }
+
+            for (a, b, c) in [
+                (face.x, face.y, face.z),
+                (face.y, face.z, face.x),
+                (face.z, face.x, face.y),
+            ] {
+                new_faces.push(UVec4 {
+                    x: vertex_map[&(a, a)] as u32,
+                    y: vertex_map[&(a, b)] as u32,
+                    z: vertex_map[&(a, c)] as u32,
+                    w: 0,
+                });
+            }
+            new_faces.push(UVec4::new(
+                vertex_map[&(face.x, face.y)] as u32,
+                vertex_map[&(face.x, face.z)] as u32,
+                vertex_map[&(face.y, face.z)] as u32,
+                0,
+            ))
+        }
+
+        Self {
+            faces: new_faces,
+            positions: new_positions,
+            normals: new_normals,
+        }
+    }
+
+    fn sphere(n: usize) -> Self {
+        let mut cube = Self::cube();
+
+        for _ in 0..n {
+            cube = cube.subdivide();
+        }
+
+        cube.positions = cube
+            .positions
+            .into_iter()
+            .map(|p| p.xyz().normalize().extend(0.0))
+            .collect_vec();
+        cube.normals = cube.positions.clone();
+
+        cube
     }
 }

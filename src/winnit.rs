@@ -5,7 +5,7 @@ use itertools::Itertools;
 use wgpu::{Instance, Surface};
 use winit::{
     application::ApplicationHandler,
-    dpi::PhysicalSize,
+    dpi::{LogicalSize, PhysicalSize},
     event::{KeyEvent, WindowEvent},
     event_loop::ActiveEventLoop,
     keyboard::PhysicalKey,
@@ -133,7 +133,8 @@ impl ApplicationHandler for WinitApp {
         };
         self.first_resume = true;
 
-        let window_attributes = Window::default_attributes();
+        let window_attributes =
+            Window::default_attributes().with_inner_size(LogicalSize::new(1440, 1440));
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         self.window = Some(window.clone());
 
